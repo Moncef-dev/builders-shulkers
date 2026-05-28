@@ -6,7 +6,9 @@
 		"ExampleClientMixin",
 		"ShulkerSlotClickMixin",
 		"ShulkerCreativeSlotClickMixin",
-		"CreativeSlotWrapperAccessor"
+		"CreativeSlotWrapperAccessor",
+		"ShulkerBoxScreenAssociateMixin",
+		"ContainerScreenCloseMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
