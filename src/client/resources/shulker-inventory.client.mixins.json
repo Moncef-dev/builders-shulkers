@@ -3,7 +3,10 @@
 	"package": "com.example.shulkerinventory.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
-		"ExampleClientMixin"
+		"ExampleClientMixin",
+		"ShulkerSlotClickMixin",
+		"ShulkerCreativeSlotClickMixin",
+		"CreativeSlotWrapperAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1
