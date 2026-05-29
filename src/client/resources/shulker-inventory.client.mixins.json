@@ -1,6 +1,6 @@
 {
 	"required": true,
-	"package": "com.example.shulkerinventory.client.mixin",
+	"package": "io.github.moncefdev.shulkerinventory.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
 		"ExampleClientMixin",

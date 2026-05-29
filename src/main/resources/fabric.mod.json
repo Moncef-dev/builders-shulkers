@@ -16,10 +16,10 @@
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"com.example.shulkerinventory.ShulkerInventory"
+			"io.github.moncefdev.shulkerinventory.ShulkerInventory"
 		],
 		"client": [
-			"com.example.shulkerinventory.client.ShulkerInventoryClient"
+			"io.github.moncefdev.shulkerinventory.client.ShulkerInventoryClient"
 		]
 	},
 	"mixins": [

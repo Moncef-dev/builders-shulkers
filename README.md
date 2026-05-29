@@ -8,10 +8,10 @@ straight from your inventory, without ever placing it down.
 - Right-click a shulker box in your inventory to open it, just like opening a chest.
 - Move items in and out with all the usual controls: left and right click, shift-click,
   drag, hotbar number keys, and drop.
-- Close the screen (Escape) to put the contents safely back into the shulker.
-- Right-click another shulker while one is open to switch straight to it.
+- Close it with Escape, or by right-clicking the same shulker again; the contents are saved safely back into it.
+- While a shulker is open, right-click another one to switch straight to it.
 - Hear the familiar shulker open and close sounds.
-- Watch the shulker lid smoothly animate open and closed, in the inventory and even on shulkers dropped in the world.
+- Watch the shulker lid smoothly animate open and closed; the animation follows the shulker through any state it can be in.
 
 Everything is handled by the server, so your items can never be duplicated.
 

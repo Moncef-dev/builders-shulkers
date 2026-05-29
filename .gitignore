@@ -39,7 +39,10 @@ replay_*.log
 *.hprof
 *.jfr
 
-# project-internal docs (not part of the distributed mod)
-DESIGN.md
-CLAUDE.md
+# Markdown: ignore root-level .md by default, keep only the public docs.
+/*.md
+!/README.md
+!/TECHNICAL.md
+
+# project-internal (not part of the distributed mod)
 .claude/
