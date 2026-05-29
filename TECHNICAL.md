@@ -128,7 +128,12 @@ Client (`shulker-inventory.client.mixins.json`):
   there is never a live animation at join time, so this self-heals a leak on the next login and also
   cleans markers left by earlier sessions retroactively. Residual: a marker on a shulker that was
   moved out of the player's inventory (for example into a chest) before the cleanup runs is not
-  reached and stays as harmless junk.
+  reached and stays as harmless junk. A bounded server-side delayed cleanup at session close (clearing
+  the marker after a short grace if the primary payload never removed it) would also heal the
+  mid-session and moved-out cases sooner, but it is deliberately not implemented: it would require an
+  always-on per-tick scheduler and extra coupling, which is not worth it for a leak that is already
+  cosmetically harmless and, for any marker still in the player's inventory, self-heals at the next
+  login (the moved-out case above being the only residual).
 - The render side channel is render-thread-confined; correct but order-sensitive.
 - Close cue uses the shulker MOB sound (our choice). The open uses the shulker box open sound, but
   the close deliberately uses the shulker MOB close sound (`SHULKER_CLOSE`) as a short, clear cue for
