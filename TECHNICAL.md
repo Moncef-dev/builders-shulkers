@@ -112,10 +112,15 @@ Client (`shulker-inventory.client.mixins.json`):
 
 ## 7. Known limitations and risks (v1.0.0)
 
-- The synthetic identity makes a tagged shulker not equal (by components) to an otherwise
-  identical untagged one while the component is present. Impact is small: shulker boxes never
-  stack in vanilla, and the component exists only briefly during the animation. Any cross-mod
-  comparison-by-components divergence is theoretical and limited to that short window.
+- Component-equality divergence (observed, not just theoretical). While `animation_id` is present,
+  the shulker is not equal by components to an otherwise identical stack without it. This is a real
+  consequence: vanilla's own `ItemStack.matchesIgnoringComponents` (used by the first-person swap
+  logic) treats the tagged and untagged shulker as different, which is exactly why
+  `IgnoreAnimationIdSwapMixin` has to exist (see section 5). The blast radius stays small because the
+  paths most sensitive to component equality (stacking, item merging, ground-entity merging) are
+  gated by stackability, and shulker boxes are non-stackable in vanilla, so they never take those
+  paths. The component is also present only briefly (the open/close animation window). The residual
+  effect is cosmetic and short-lived.
 - Disk leak: if the client disconnects or crashes mid-animation, `AnimationFinishedPayload` may
   never arrive and a harmless junk `animation_id` can remain on that shulker (no visual effect:
   `isAnimating` is false, so the renderer falls back to vanilla openness).
