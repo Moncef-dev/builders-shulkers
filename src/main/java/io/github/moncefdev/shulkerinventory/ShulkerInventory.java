@@ -6,6 +6,7 @@ import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
@@ -93,6 +94,27 @@ public class ShulkerInventory implements ModInitializer {
 				if (stackId != null && stackId == animationId) {
 					stack.remove(ShulkerInventoryComponents.ANIMATION_ID);
 				}
+			}
+		});
+
+		// Login cleanup (safety net). The animation_id marker is normally removed by AnimationFinishedPayload
+		// when the closing animation ends. If that payload never arrives (disconnect or crash mid-animation),
+		// a harmless leftover marker can persist on a shulker. There is never a live animation at join time, so
+		// strip any leftover marker from the joining player's inventory. This also retroactively cleans markers
+		// leaked by earlier sessions.
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			Inventory inventory = handler.player.getInventory();
+			int cleaned = 0;
+			for (int i = 0; i < inventory.getContainerSize(); i++) {
+				ItemStack stack = inventory.getItem(i);
+				if (stack.get(ShulkerInventoryComponents.ANIMATION_ID) != null) {
+					stack.remove(ShulkerInventoryComponents.ANIMATION_ID);
+					cleaned++;
+				}
+			}
+			if (cleaned > 0) {
+				LOGGER.info("Removed {} stale animation marker(s) from {}'s inventory on join",
+						cleaned, handler.player.getName().getString());
 			}
 		});
 

@@ -121,9 +121,14 @@ Client (`shulker-inventory.client.mixins.json`):
   gated by stackability, and shulker boxes are non-stackable in vanilla, so they never take those
   paths. The component is also present only briefly (the open/close animation window). The residual
   effect is cosmetic and short-lived.
-- Disk leak: if the client disconnects or crashes mid-animation, `AnimationFinishedPayload` may
-  never arrive and a harmless junk `animation_id` can remain on that shulker (no visual effect:
-  `isAnimating` is false, so the renderer falls back to vanilla openness).
+- Disk leak (mitigated). If the client disconnects or crashes mid-animation, `AnimationFinishedPayload`
+  may never arrive and a harmless junk `animation_id` can remain on that shulker (no visual effect:
+  `isAnimating` is false, so the renderer falls back to vanilla openness). A login cleanup
+  (`ServerPlayConnectionEvents.JOIN`) strips any leftover marker from the joining player's inventory;
+  there is never a live animation at join time, so this self-heals a leak on the next login and also
+  cleans markers left by earlier sessions retroactively. Residual: a marker on a shulker that was
+  moved out of the player's inventory (for example into a chest) before the cleanup runs is not
+  reached and stays as harmless junk.
 - The render side channel is render-thread-confined; correct but order-sensitive.
 - Close cue uses the shulker MOB sound (our choice). The open uses the shulker box open sound, but
   the close deliberately uses the shulker MOB close sound (`SHULKER_CLOSE`) as a short, clear cue for
