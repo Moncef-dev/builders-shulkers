@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.WeakHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ThreadLocalRandom;
 
 // Client-side state for shulker lid animations. Allocates a unique id per open request, tracks each animation
 // through OPENING -> OPENED -> CLOSING, and exposes the "currently rendering" id to the render mixins via the
@@ -29,7 +29,6 @@ public final class ClientShulkerSession {
 
 	public record AnimationMarker(long animationId) {}
 
-	private static final AtomicLong nextId = new AtomicLong(1);
 	private static final Map<Long, AnimationState> animations = new HashMap<>();
 	private static final WeakHashMap<Screen, Long> screenIdMap = new WeakHashMap<>();
 	private static Long pendingIdForScreen = null;
@@ -51,8 +50,16 @@ public final class ClientShulkerSession {
 		return currentItemEntityAnimationId;
 	}
 
+	// A random non-zero long, so ids are globally unique across clients. A per-client sequential counter would
+	// restart at the same values on every client, so in multiplayer a shulker carrying client A's id could collide
+	// with an unrelated animation client B is tracking under the same id, making B render A's shulker as open. Zero
+	// is reserved as the "no id" sentinel for the render side channel.
 	public static long allocateId() {
-		return nextId.getAndIncrement();
+		long id;
+		do {
+			id = ThreadLocalRandom.current().nextLong();
+		} while (id == 0L);
+		return id;
 	}
 
 	public static void startOpening(long animationId) {
