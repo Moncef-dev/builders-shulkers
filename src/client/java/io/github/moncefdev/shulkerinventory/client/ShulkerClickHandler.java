@@ -4,12 +4,11 @@ import io.github.moncefdev.shulkerinventory.client.mixin.CreativeSlotWrapperAcce
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.ShulkerBoxBlock;
 
 public final class ShulkerClickHandler {
 	private ShulkerClickHandler() {}
@@ -31,8 +30,8 @@ public final class ShulkerClickHandler {
 
 		ItemStack stack = effectiveSlot.getItem();
 		if (stack.isEmpty()) return false;
-		if (!(stack.getItem() instanceof BlockItem blockItem)) return false;
-		if (!(blockItem.getBlock() instanceof ShulkerBoxBlock)) return false;
+		// Detect shulkers by the vanilla tag (not a hardcoded class): recognizes modded shulkers in the tag too.
+		if (!stack.typeHolder().is(ItemTags.SHULKER_BOXES)) return false;
 
 		long animationId = ClientShulkerSession.allocateId();
 		ClientShulkerSession.startOpening(animationId);

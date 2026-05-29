@@ -124,10 +124,10 @@ This mod is built to be a good vanilla citizen, but it relies on a few vanilla c
 another mod breaks one of these, interop may suffer. Below: what could clash, and how to stay
 compatible from the other mod's side.
 
-- Custom shulker-like blocks not recognized. We detect shulkers via `instanceof ShulkerBoxBlock`.
-  A custom container block that does not extend `ShulkerBoxBlock` will not be opened by this mod.
-  To be compatible: extend `ShulkerBoxBlock` for custom shulker variants (and add them to the
-  vanilla `minecraft:shulker_boxes` block/item tags for broad ecosystem compatibility).
+- Custom shulker-like items are supported through the tag. We detect shulkers by the vanilla
+  `minecraft:shulker_boxes` ITEM tag (`stack.typeHolder().is(ItemTags.SHULKER_BOXES)`), not a
+  hardcoded class, so a custom shulker item that is in that tag is recognized automatically.
+  To be compatible: add custom shulker variants to the vanilla `minecraft:shulker_boxes` item tag.
 
 - Conflicting interception of inventory clicks. Our click mixins inject at `slotClicked` HEAD
   and cancel only for a tightly gated case (plain right-click, empty cursor, a shulker in the

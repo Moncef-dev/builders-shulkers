@@ -11,14 +11,13 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
-import net.minecraft.world.level.block.ShulkerBoxBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,9 +52,7 @@ public class ShulkerInventory implements ModInitializer {
 			}
 
 			ItemStack stack = inventory.getItem(slotIndex);
-			if (stack.isEmpty()
-					|| !(stack.getItem() instanceof BlockItem blockItem)
-					|| !(blockItem.getBlock() instanceof ShulkerBoxBlock)) {
+			if (stack.isEmpty() || !stack.typeHolder().is(ItemTags.SHULKER_BOXES)) {
 				LOGGER.warn("Player {} tried to open non-shulker stack at slot {}: {}",
 						player.getName().getString(), slotIndex, stack);
 				return;

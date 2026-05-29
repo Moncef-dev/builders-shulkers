@@ -7,6 +7,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -14,10 +15,8 @@ import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
-import net.minecraft.world.level.block.ShulkerBoxBlock;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -148,9 +147,7 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	// still holds a shulker (it may have moved), to avoid writing onto the wrong item.
 	private void saveContents(Player player) {
 		ItemStack sourceStack = player.getInventory().getItem(sourceSlotIndex);
-		if (sourceStack.isEmpty()
-				|| !(sourceStack.getItem() instanceof BlockItem blockItem)
-				|| !(blockItem.getBlock() instanceof ShulkerBoxBlock)) {
+		if (sourceStack.isEmpty() || !sourceStack.typeHolder().is(ItemTags.SHULKER_BOXES)) {
 			ShulkerInventory.LOGGER.warn(
 					"Cannot save shulker contents: source slot {} no longer contains a shulker (item: {})",
 					sourceSlotIndex, sourceStack);
