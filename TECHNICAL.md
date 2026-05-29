@@ -59,8 +59,10 @@ can recognize the animating stack wherever it is drawn (GUI, hand, dropped entit
   hashed during container-click validation (`HashedStack`). A non-encodable (transient)
   component throws `not encodable` and crashes the click handler. So the identity component
   must be encodable, i.e. persistent.
-- `.ignoreSwapAnimation()` on the component prevents the first-person hand swap animation from
-  firing when only this value changes.
+- `.ignoreSwapAnimation()` on the component suppresses the first-person hand swap animation when an
+  already-present `animation_id` only changes VALUE. It does NOT cover the component being added or
+  removed; that case is handled by `IgnoreAnimationIdSwapMixin` (see section 5 for why both are
+  needed).
 - The animation state machine (progress, OPENING/OPENED/CLOSING) is purely client-side in
   `ClientShulkerSession`. The component is removed via `AnimationFinishedPayload` once the
   closing animation completes.
@@ -93,8 +95,14 @@ Client (`shulker-inventory.client.mixins.json`):
 - `ShulkerAnimatedMixin` / `GuiItemAtlasMixin` / `ShulkerBoxOpennessMixin`: drive the GUI lid
   openness from animation progress.
 - `ItemEntityRenderStateMixin` / `ItemEntityRendererMixin`: animate the lid on dropped shulkers.
-- `IgnoreAnimationIdSwapMixin` -> `ItemInHandRenderer.shouldInstantlyReplaceVisibleItem`: avoid
-  the hand swap animation when only `animation_id` changed.
+- `IgnoreAnimationIdSwapMixin` -> `ItemInHandRenderer.shouldInstantlyReplaceVisibleItem` (HEAD,
+  cancellable): suppress the hand swap animation when two held stacks differ only by `animation_id`
+  being added or removed. This is NOT redundant with the vanilla `.ignoreSwapAnimation()` flag.
+  Vanilla decides via `ItemStack.matchesIgnoringComponents`, which first short-circuits to false on
+  `components.size()` inequality and only consults the ignore predicate afterwards (at equal size).
+  So the flag covers a value change of an already-present component, but a component that is present
+  on one stack and absent on the other (open adds it, the finished close removes it) changes the map
+  size and still triggers the swap. This mixin covers exactly that add/remove transition.
 
 ## 6. Networking payloads
 
