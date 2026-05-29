@@ -56,6 +56,13 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		alreadySaved = true;
 		playCloseSound(serverPlayer);
 		closeMenuSilently(serverPlayer);
+		finishReturnToInventory(serverPlayer);
+	}
+
+	// Syncs the inventory menu to the client and asks it to reopen the inventory screen. The authoritative cursor is
+	// kept in sync by closeMenuSilently (which transfers the cursor onto the inventory menu, including an empty
+	// cursor) plus this broadcast, so the client never keeps a stale cursor item.
+	private void finishReturnToInventory(ServerPlayer serverPlayer) {
 		serverPlayer.inventoryMenu.broadcastFullState();
 		ServerPlayNetworking.send(serverPlayer, OpenPlayerInventoryPayload.INSTANCE);
 	}
@@ -73,8 +80,7 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 				playCloseSound(serverPlayer);
 				closeMenuSilently(serverPlayer);
 				replayClickOnInventoryMenu(serverPlayer, slotId, button, input);
-				serverPlayer.inventoryMenu.broadcastFullState();
-				ServerPlayNetworking.send(serverPlayer, OpenPlayerInventoryPayload.INSTANCE);
+				finishReturnToInventory(serverPlayer);
 			}
 			return;
 		}
@@ -88,9 +94,13 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		ItemStack carriedSnapshot = this.getCarried();
 		this.setCarried(ItemStack.EMPTY);
 		serverPlayer.doCloseContainer();
-		if (!carriedSnapshot.isEmpty()) {
-			serverPlayer.inventoryMenu.setCarried(carriedSnapshot);
-		}
+		// Always transfer the cursor onto the inventory menu, INCLUDING an empty cursor. The shulker menu carried
+		// is the authoritative cursor at close. Re-injecting only when non-empty (the old behavior) left any stale
+		// inventoryMenu carried in place: a phantom from an earlier source-slot pickup that creative's
+		// set-creative-slot placement never clears. That value then never changes, so vanilla never re-syncs it and
+		// the client commits it as a real duplicate in creative. Setting it unconditionally flushes the phantom (to
+		// empty) and, because the value changes, triggers the cursor re-sync to the client.
+		serverPlayer.inventoryMenu.setCarried(carriedSnapshot);
 	}
 
 	private void replayClickOnInventoryMenu(ServerPlayer serverPlayer, int slotId, int button, ContainerInput input) {

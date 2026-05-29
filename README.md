@@ -17,6 +17,9 @@ Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
 
+### 1.0.3
+Fixed an item duplication bug in creative mode that could occur when closing a shulker box. Survival mode was never affected.
+
 ### 1.0.2
 On a server that does not have the mod installed, right-clicking a shulker box now keeps its normal behavior (you can pick it up) instead of doing nothing.
 

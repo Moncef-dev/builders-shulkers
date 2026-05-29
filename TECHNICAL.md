@@ -1,7 +1,7 @@
-# Shulker Inventory - Technical Documentation (v1.0.2)
+# Shulker Inventory - Technical Documentation (v1.0.3)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.0.2.
+their scope, and known risks. Describes the state as shipped in v1.0.3.
 
 ## Environment
 
@@ -43,6 +43,13 @@ what gets picked up or relocated.
   ambiguity, and the contents always travel with the (already-saved) stack.
 - `ServerContainerCloseMixin` cancels container-close packets whose id does not match the
   currently open menu, so a late close for a previous menu cannot close a freshly swapped one.
+- Cursor handling on close: `closeMenuSilently` transfers the cursor from the shulker menu onto the
+  player inventory menu UNCONDITIONALLY, including an empty cursor. This matters because picking the
+  source shulker up onto the inventory cursor (the commit-on-disturbance replay) can leave a stale
+  cursor stack that creative's set-creative-slot placement never clears. Only re-injecting a non-empty
+  cursor would leave that phantom in place; its value never changes, so the game never re-syncs the
+  cursor, and in creative (where the client authors its own inventory) the phantom is committed as a
+  real duplicate. Transferring unconditionally flushes it and triggers the cursor re-sync.
 
 ## 3. Per-shulker identity: the `animation_id` component
 
@@ -113,7 +120,7 @@ Client (`shulker-inventory.client.mixins.json`):
 - `OpenPlayerInventoryPayload` (S2C): reopen the player's inventory screen after a session ends.
 - `AnimationFinishedPayload` (C2S): the closing animation finished, drop the marker.
 
-## 7. Known limitations and risks (v1.0.2)
+## 7. Known limitations and risks (v1.0.3)
 
 - Component-equality divergence (observed, not just theoretical). While `animation_id` is present,
   the shulker is not equal by components to an otherwise identical stack without it. This is a real
