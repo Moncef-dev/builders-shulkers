@@ -17,6 +17,9 @@ Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
 
+### 1.0.1
+Shulker boxes added by other mods are now recognized (anything in the shulker boxes tag). Switching between shulkers and closing them is more reliable in edge cases.
+
 ### 1.0.0
 First stable release. Opening a held shulker no longer jolts your hand, so the animation stays smooth everywhere.
 
