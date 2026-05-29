@@ -17,6 +17,9 @@ Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
 
+### 1.0.5
+Fixed a creative-mode duplication that could happen when picking a shulker box onto the cursor and then closing the inventory. Fixed a multiplayer visual glitch where a transferred shulker box could appear stuck open for another player.
+
 ### 1.0.4
 Closing a shulker box now plays the shulker box's own close sound, matching the lid animation, instead of the shorter shulker creature sound.
 

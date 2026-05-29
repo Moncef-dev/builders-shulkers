@@ -1,7 +1,7 @@
-# Shulker Inventory - Technical Documentation (v1.0.4)
+# Shulker Inventory - Technical Documentation (v1.0.5)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.0.4.
+their scope, and known risks. Describes the state as shipped in v1.0.5.
 
 ## Environment
 
@@ -50,6 +50,13 @@ what gets picked up or relocated.
   cursor would leave that phantom in place; its value never changes, so the game never re-syncs the
   cursor, and in creative (where the client authors its own inventory) the phantom is committed as a
   real duplicate. Transferring unconditionally flushes it and triggers the cursor re-sync.
+- Creative cursor reconciliation on close: creative stays special even with the transfer above. In creative
+  the cursor is client-authoritative (the client commits slot changes via `SetCreativeModeSlot`), so a creative
+  throw or place does NOT clear the server's inventory-menu cursor. A stale cursor left there is re-given by the
+  vanilla inventory close, duplicating an item the client already disposed of (for example, picking the source
+  shulker onto the cursor, throwing it out, then closing the inventory). So at the inventory close
+  `ServerContainerCloseMixin` clears the server cursor in creative; the creative client owns and commits the
+  real cursor item itself. Survival is unaffected (the cursor is server-authoritative there).
 
 ## 3. Per-shulker identity: the `animation_id` component
 
@@ -58,14 +65,20 @@ keyed by a per-shulker identity, never by the slot.
 
 Minecraft items are value objects: an `ItemStack` has no per-instance unique id; equality is
 by (item, components). To track one specific shulker, the mod adds a synthetic identity: the
-`shulker-inventory:animation_id` data component (a `long`). It is allocated client-side at
-open, stamped on the source stack server-side, and network-synchronized so the client renderer
-can recognize the animating stack wherever it is drawn (GUI, hand, dropped entity).
+`shulker-inventory:animation_id` data component (a `long`). It is allocated client-side at open as a
+globally-unique random long, stamped on the source stack server-side, and network-synchronized so the
+client renderer can recognize the animating stack wherever it is drawn (GUI, hand, dropped entity).
 
 - Why a data component, and why PERSISTENT (encodable): a stack that lives in a container is
   hashed during container-click validation (`HashedStack`). A non-encodable (transient)
   component throws `not encodable` and crashes the click handler. So the identity component
   must be encodable, i.e. persistent.
+- Why a globally-unique RANDOM long (not a per-client counter): each client tracks its live animations in
+  its own map keyed by this id. A per-client sequential counter restarts at the same values on every client,
+  so in multiplayer a shulker carrying client A's id could collide with an unrelated animation client B tracks
+  under the same id, making B render A's shulker as open. A random 64-bit id makes that collision
+  astronomically improbable, and the worst case of a collision is a brief self-healing cosmetic glitch on one
+  client (never a duplication). Zero is reserved as the render side channel's "no id" sentinel.
 - `.ignoreSwapAnimation()` on the component suppresses the first-person hand swap animation when an
   already-present `animation_id` only changes VALUE. It does NOT cover the component being added or
   removed; that case is handled by `IgnoreAnimationIdSwapMixin` (see section 5 for why both are
@@ -120,7 +133,7 @@ Client (`shulker-inventory.client.mixins.json`):
 - `OpenPlayerInventoryPayload` (S2C): reopen the player's inventory screen after a session ends.
 - `AnimationFinishedPayload` (C2S): the closing animation finished, drop the marker.
 
-## 7. Known limitations and risks (v1.0.4)
+## 7. Known limitations and risks (v1.0.5)
 
 - Component-equality divergence (observed, not just theoretical). While `animation_id` is present,
   the shulker is not equal by components to an otherwise identical stack without it. This is a real
