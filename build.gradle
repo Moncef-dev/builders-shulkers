@@ -24,6 +24,16 @@ loom {
 		}
 	}
 
+	// Dev convenience: a second client run with a distinct username, for local multiplayer testing
+	// against `runServer` (two modded clients on one local server). Inherits the default client run
+	// and only overrides the username. Not used by the built mod; dev environment only.
+	runs {
+		clientBob {
+			inherit client
+			programArgs("--username", "Bob")
+		}
+	}
+
 }
 
 dependencies {
