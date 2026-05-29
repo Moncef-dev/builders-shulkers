@@ -88,7 +88,10 @@ Server (`shulker-inventory.mixins.json`):
 
 Client (`shulker-inventory.client.mixins.json`):
 - `ShulkerSlotClickMixin` / `ShulkerCreativeSlotClickMixin` -> `slotClicked` (HEAD, cancellable):
-  route a right-click on a shulker to the open handler.
+  route a right-click on a shulker to the open handler. The interception is gated on
+  `ClientPlayNetworking.canSend(OpenShulkerPayload.TYPE)`: on a server that does not run the mod the
+  server cannot receive the open request, so the click is left to vanilla and the shulker keeps its
+  normal right-click behavior instead of being a dead click.
 - `CreativeSlotWrapperAccessor`: unwrap the creative slot wrapper.
 - `ShulkerBoxScreenAssociateMixin` / `ContainerScreenCloseMixin`: tie the open/close animation
   to the shulker screen lifecycle.

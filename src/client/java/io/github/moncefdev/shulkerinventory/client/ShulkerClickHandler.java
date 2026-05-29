@@ -32,6 +32,9 @@ public final class ShulkerClickHandler {
 		if (stack.isEmpty()) return false;
 		// Detect shulkers by the vanilla tag (not a hardcoded class): recognizes modded shulkers in the tag too.
 		if (!stack.typeHolder().is(ItemTags.SHULKER_BOXES)) return false;
+		// Only intercept if the server runs the mod and can receive our open request. On a server without the
+		// mod, fall through to vanilla so the shulker keeps its normal right-click behavior (no dead clicks).
+		if (!ClientPlayNetworking.canSend(OpenShulkerPayload.TYPE)) return false;
 
 		long animationId = ClientShulkerSession.allocateId();
 		ClientShulkerSession.startOpening(animationId);
