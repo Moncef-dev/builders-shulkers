@@ -7,8 +7,12 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Entity;
 
 public class ShulkerInventoryClient implements ClientModInitializer {
 	// ~1s after join, enough for Fabric to finish channel negotiation before we trust canSend.
@@ -33,8 +37,9 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 			});
 		});
 
-		// Mirror another player's lid animation (broadcast by the server to players who can see the holder), so we
-		// see the lid move on the shulker held by that other player.
+		// Mirror another player's lid animation AND sound (broadcast by the server only to players who can see the
+		// holder, and only for a HELD shulker), so we see the lid move and hear it on the shulker held by that
+		// other player. The sound plays at the holder's position to match the visible animation.
 		ClientPlayNetworking.registerGlobalReceiver(RemoteShulkerAnimationPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> {
 				if (payload.opening()) {
@@ -42,6 +47,7 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 				} else {
 					ClientShulkerSession.startClosing(payload.animationId());
 				}
+				playRemoteSound(context.client(), payload.holderEntityId(), payload.opening());
 			});
 		});
 
@@ -66,5 +72,14 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 				client.player.sendSystemMessage(SERVER_MISSING_MOD_MESSAGE);
 			}
 		});
+	}
+
+	private static void playRemoteSound(Minecraft client, int holderEntityId, boolean opening) {
+		if (client.level == null) return;
+		Entity holder = client.level.getEntity(holderEntityId);
+		if (holder == null) return;
+		client.level.playLocalSound(holder,
+				opening ? SoundEvents.SHULKER_BOX_OPEN : SoundEvents.SHULKER_BOX_CLOSE,
+				SoundSource.BLOCKS, 0.5f, client.level.getRandom().nextFloat() * 0.1f + 0.9f);
 	}
 }

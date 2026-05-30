@@ -11,8 +11,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
@@ -79,12 +77,14 @@ public class ShulkerInventory implements ModInitializer {
 			}
 			// Tag the stack (in vanilla custom_data) so the client knows to play the lid animation for this open.
 			ShulkerAnimationMarker.set(stack, animationId);
-			player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-					SoundEvents.SHULKER_BOX_OPEN, SoundSource.BLOCKS,
-					0.5f, player.level().getRandom().nextFloat() * 0.1f + 0.9f);
 			player.openMenu(provider);
-			// Mirror the opening lid animation to the other players who can see this player.
-			InventoryShulkerBoxMenu.broadcastAnimation(player, animationId, true);
+			// Mirror the opening lid animation/sound to the OTHER players who can see this player, but only when the
+			// shulker is HELD (visible in hand): an open from an invisible inventory slot has nothing for them to
+			// see or hear. The opener's own animation and sound are handled on their own client.
+			boolean held = slotIndex == inventory.getSelectedSlot() || slotIndex == Inventory.SLOT_OFFHAND;
+			if (held) {
+				InventoryShulkerBoxMenu.broadcastAnimation(player, animationId, true);
+			}
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(AnimationFinishedPayload.TYPE, (payload, context) -> {

@@ -7,8 +7,6 @@ import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -45,7 +43,7 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	// shulker too (the holder animates locally and is excluded). Cosmetic broadcast; in singleplayer there are no
 	// other tracking players, so this is a no-op and solo behavior is unchanged.
 	public static void broadcastAnimation(ServerPlayer holder, long animationId, boolean opening) {
-		RemoteShulkerAnimationPayload payload = new RemoteShulkerAnimationPayload(animationId, opening);
+		RemoteShulkerAnimationPayload payload = new RemoteShulkerAnimationPayload(animationId, opening, holder.getId());
 		for (ServerPlayer viewer : PlayerLookup.tracking(holder)) {
 			// Only send to viewers that run the mod and have registered our channel. This skips vanilla clients
 			// (compatibility: never push our payload to a client that cannot handle it) and any viewer not yet
@@ -74,7 +72,6 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	public void closeAndReturnToInventory(ServerPlayer serverPlayer) {
 		saveContents(serverPlayer);
 		alreadySaved = true;
-		playCloseSound(serverPlayer);
 		closeMenuSilently(serverPlayer);
 		finishReturnToInventory(serverPlayer);
 	}
@@ -97,7 +94,6 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 			if (player instanceof ServerPlayer serverPlayer) {
 				saveContents(serverPlayer);
 				alreadySaved = true;
-				playCloseSound(serverPlayer);
 				closeMenuSilently(serverPlayer);
 				replayClickOnInventoryMenu(serverPlayer, slotId, button, input);
 				finishReturnToInventory(serverPlayer);
@@ -163,19 +159,18 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		super.removed(player);
 		if (!alreadySaved) {
 			saveContents(player);
-			playCloseSound(player);
 		}
-		// Tell the other players who can see the holder to play the closing lid animation. removed() is the single
-		// close chokepoint (toggle, commit-on-disturbance, Escape, swap all route through it).
-		if (player instanceof ServerPlayer serverPlayer) {
+		// Mirror the closing lid animation/sound to the other players who can see the holder. removed() is the single
+		// close chokepoint (toggle, commit-on-disturbance, Escape, swap all route through it). Held-gated: only when
+		// the shulker is in the hand (visible to them). The opener's own close sound is played on their own client.
+		if (player instanceof ServerPlayer serverPlayer && isHeld(serverPlayer)) {
 			broadcastAnimation(serverPlayer, animationId, false);
 		}
 	}
 
-	private static void playCloseSound(Player player) {
-		player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-				SoundEvents.SHULKER_BOX_CLOSE, SoundSource.BLOCKS,
-				0.5f, player.level().getRandom().nextFloat() * 0.1f + 0.9f);
+	private boolean isHeld(ServerPlayer player) {
+		return sourceSlotIndex == player.getInventory().getSelectedSlot()
+				|| sourceSlotIndex == Inventory.SLOT_OFFHAND;
 	}
 
 	// Writes the working container back into the source stack's CONTAINER component. Guards that the source slot

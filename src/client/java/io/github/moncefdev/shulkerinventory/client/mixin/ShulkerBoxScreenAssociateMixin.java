@@ -17,6 +17,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ShulkerBoxScreenAssociateMixin {
 	@Inject(method = "<init>", at = @At("RETURN"))
 	private void shulkerInventory$associateWithPendingId(ShulkerBoxMenu menu, Inventory inventory, Component title, CallbackInfo ci) {
-		ClientShulkerSession.associateScreenWithPendingId((Screen) (Object) this);
+		Screen screen = (Screen) (Object) this;
+		ClientShulkerSession.associateScreenWithPendingId(screen);
+		// A non-null id means this screen claimed our pending open, i.e. it is one of OUR shulker sessions (not a
+		// vanilla block shulker screen). The opener always hears their own open sound.
+		if (ClientShulkerSession.getIdForScreen(screen) != null) {
+			ClientShulkerSession.playOwnSound(true);
+		}
 	}
 }

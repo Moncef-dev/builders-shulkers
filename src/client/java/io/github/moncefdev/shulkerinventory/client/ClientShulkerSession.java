@@ -3,7 +3,10 @@ package io.github.moncefdev.shulkerinventory.client;
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.network.AnimationFinishedPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 
@@ -118,6 +121,17 @@ public final class ClientShulkerSession {
 				}
 			}
 		}
+	}
+
+	// Plays the opener's OWN shulker open/close sound, locally at their own position. The opener always hears both
+	// sounds, whether the shulker is held or buried in the inventory; this is deliberately independent of the
+	// held-gated broadcast that carries the sound to OTHER players (who only hear it for a visibly held shulker).
+	public static void playOwnSound(boolean opening) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.level == null || mc.player == null) return;
+		mc.level.playLocalSound(mc.player,
+				opening ? SoundEvents.SHULKER_BOX_OPEN : SoundEvents.SHULKER_BOX_CLOSE,
+				SoundSource.BLOCKS, 0.5f, mc.level.getRandom().nextFloat() * 0.1f + 0.9f);
 	}
 
 	public static boolean isAnimating(long animationId) {

@@ -18,5 +18,7 @@ public abstract class ContainerScreenCloseMixin {
 		Long animationId = ClientShulkerSession.getIdForScreen((Screen) (Object) this);
 		if (animationId == null) return;
 		ClientShulkerSession.startClosing(animationId);
+		// The opener always hears their own close sound (independent of the held-gated broadcast to other players).
+		ClientShulkerSession.playOwnSound(false);
 	}
 }
