@@ -1,6 +1,6 @@
 package io.github.moncefdev.shulkerinventory.client;
 
-import io.github.moncefdev.shulkerinventory.ShulkerInventoryComponents;
+import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.network.AnimationFinishedPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.screens.Screen;
@@ -131,7 +131,7 @@ public final class ClientShulkerSession {
 	}
 
 	public static Long getAnimationIdForStack(ItemStack stack) {
-		return stack.get(ShulkerInventoryComponents.ANIMATION_ID);
+		return ShulkerAnimationMarker.get(stack);
 	}
 
 	public static void associateScreenWithPendingId(Screen screen) {

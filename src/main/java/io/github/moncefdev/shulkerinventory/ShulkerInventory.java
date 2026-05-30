@@ -29,7 +29,6 @@ public class ShulkerInventory implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		ShulkerInventoryComponents.register();
 		PayloadTypeRegistry.serverboundPlay().register(OpenShulkerPayload.TYPE, OpenShulkerPayload.STREAM_CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(AnimationFinishedPayload.TYPE, AnimationFinishedPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(OpenPlayerInventoryPayload.TYPE, OpenPlayerInventoryPayload.STREAM_CODEC);
@@ -78,8 +77,8 @@ public class ShulkerInventory implements ModInitializer {
 			if (player.containerMenu != player.inventoryMenu) {
 				player.doCloseContainer();
 			}
-			// Tag the stack so the client knows to play the lid animation for this open.
-			stack.set(ShulkerInventoryComponents.ANIMATION_ID, animationId);
+			// Tag the stack (in vanilla custom_data) so the client knows to play the lid animation for this open.
+			ShulkerAnimationMarker.set(stack, animationId);
 			player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
 					SoundEvents.SHULKER_BOX_OPEN, SoundSource.BLOCKS,
 					0.5f, player.level().getRandom().nextFloat() * 0.1f + 0.9f);
@@ -94,9 +93,9 @@ public class ShulkerInventory implements ModInitializer {
 			Inventory inventory = player.getInventory();
 			for (int i = 0; i < inventory.getContainerSize(); i++) {
 				ItemStack stack = inventory.getItem(i);
-				Long stackId = stack.get(ShulkerInventoryComponents.ANIMATION_ID);
+				Long stackId = ShulkerAnimationMarker.get(stack);
 				if (stackId != null && stackId == animationId) {
-					stack.remove(ShulkerInventoryComponents.ANIMATION_ID);
+					ShulkerAnimationMarker.remove(stack);
 				}
 			}
 		});
@@ -111,8 +110,8 @@ public class ShulkerInventory implements ModInitializer {
 			int cleaned = 0;
 			for (int i = 0; i < inventory.getContainerSize(); i++) {
 				ItemStack stack = inventory.getItem(i);
-				if (stack.get(ShulkerInventoryComponents.ANIMATION_ID) != null) {
-					stack.remove(ShulkerInventoryComponents.ANIMATION_ID);
+				if (ShulkerAnimationMarker.get(stack) != null) {
+					ShulkerAnimationMarker.remove(stack);
 					cleaned++;
 				}
 			}
