@@ -160,19 +160,30 @@ Client (`shulker-inventory.client.mixins.json`):
   gated by stackability, and shulker boxes are non-stackable in vanilla, so they never take those
   paths. The component is also present only briefly (the open/close animation window). The residual
   effect is cosmetic and short-lived.
-- Disk leak (mitigated). If the client disconnects or crashes mid-animation, `AnimationFinishedPayload`
-  may never arrive and a harmless junk `animation_id` can remain on that shulker (no visual effect:
-  `isAnimating` is false, so the renderer falls back to vanilla openness). A login cleanup
-  (`ServerPlayConnectionEvents.JOIN`) strips any leftover marker from the joining player's inventory;
-  there is never a live animation at join time, so this self-heals a leak on the next login and also
-  cleans markers left by earlier sessions retroactively. Residual: a marker on a shulker that was
-  moved out of the player's inventory (for example into a chest) before the cleanup runs is not
-  reached and stays as harmless junk. A bounded server-side delayed cleanup at session close (clearing
-  the marker after a short grace if the primary payload never removed it) would also heal the
-  mid-session and moved-out cases sooner, but it is deliberately not implemented: it would require an
-  always-on per-tick scheduler and extra coupling, which is not worth it for a leak that is already
-  cosmetically harmless and, for any marker still in the player's inventory, self-heals at the next
-  login (the moved-out case above being the only residual).
+- Disk leak (mitigated, with an irreducible residual). If the client disconnects or crashes mid-animation,
+  `AnimationFinishedPayload` may never arrive and a harmless junk `animation_id` can remain on that shulker (no
+  visual effect: `isAnimating` is false, so the renderer falls back to vanilla openness). Two mitigations narrow
+  it. First, `AnimationFinishedPayload` clears the marker not only from the inventory slots but also from the
+  cursor, so the case where the open shulker was picked onto the cursor (commit-on-disturbance) is healed as soon
+  as the closing animation ends instead of leaking. Second, a login cleanup (`ServerPlayConnectionEvents.JOIN`)
+  strips any leftover marker from the joining player's inventory; there is never a live animation at join time, so
+  this self-heals a leak on the next login and also cleans markers left by earlier sessions retroactively.
+  Residual: a marker on a shulker moved out of the player's inventory (for example into a chest) before the
+  cleanup runs is not reached and stays as harmless junk. A bounded server-side delayed cleanup at session close
+  (clearing the marker after a short grace if the primary payload never removed it) would heal the mid-session and
+  moved-out cases sooner, but it is deliberately not implemented: it would require an always-on per-tick scheduler
+  and extra coupling, not worth it for a leak that is already cosmetically harmless and self-heals at the next
+  login for any marker still in the inventory.
+- Why the residual leak is irreducible (not merely unimplemented). The lid animation needs a marker that lives on
+  the stack for the animation's lifetime (about half a second), and that marker must be encodable/persistent: a
+  stack sitting in a container is hashed during container-click validation, and a transient (non-encodable)
+  component throws and crashes the click handler. So the marker is briefly written to disk by design. Minecraft
+  `ItemStack`s are value objects that are COPIED on almost every move, so the live reference a close-time cleanup
+  would scrub can become a stale copy elsewhere the instant the player relocates the shulker mid-animation.
+  Reliably following that copy would require either scanning every container in the world each tick or maintaining
+  a per-stack identity registry, both heavier and more invasive than the harmless, self-healing junk they would
+  remove. The leak is therefore reduced to its practical floor (immediate clear on a normal finish, cursor
+  included; login sweep otherwise) and the last residual is accepted.
 - The render side channel is render-thread-confined; correct but order-sensitive.
 - Creative-only transient visual duplicate (cosmetic, client render only, not fully understood). Distinct from the
   item loss and creative duplication fixed by `dropCreativeCursorShadow` above: this is a render artifact, not a

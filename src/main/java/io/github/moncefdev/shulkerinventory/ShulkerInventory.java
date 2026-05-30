@@ -98,6 +98,16 @@ public class ShulkerInventory implements ModInitializer {
 					ShulkerAnimationMarker.remove(stack);
 				}
 			}
+			// Also clear the marker off the cursor. If the source shulker was picked up onto the cursor while open
+			// (commit-on-disturbance), it leaves the inventory slots the loop scans, so the marker would otherwise
+			// stick. The marker is removed only once the closing animation has finished, so the animation still
+			// plays. In creative the server cursor is empty (we hand the cursor to the client at session close), so
+			// this is a no-op there and a tiny benign residue may ride the client cursor until the next login scan.
+			ItemStack carried = player.containerMenu.getCarried();
+			Long carriedId = ShulkerAnimationMarker.get(carried);
+			if (carriedId != null && carriedId == animationId) {
+				ShulkerAnimationMarker.remove(carried);
+			}
 		});
 
 		// Login cleanup (safety net). The animation_id marker is normally removed by AnimationFinishedPayload
