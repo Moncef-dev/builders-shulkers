@@ -54,9 +54,13 @@ what gets picked up or relocated.
   the cursor is client-authoritative (the client commits slot changes via `SetCreativeModeSlot`), so a creative
   throw or place does NOT clear the server's inventory-menu cursor. A stale cursor left there is re-given by the
   vanilla inventory close, duplicating an item the client already disposed of (for example, picking the source
-  shulker onto the cursor, throwing it out, then closing the inventory). So at the inventory close
-  `ServerContainerCloseMixin` clears the server cursor in creative; the creative client owns and commits the
-  real cursor item itself. Survival is unaffected (the cursor is server-authoritative there).
+  shulker onto the cursor, throwing it out, then closing the inventory); and clearing it eagerly at close time
+  instead would clobber the client's still-held cursor and lose the item. So at session close
+  `InventoryShulkerBoxMenu.dropCreativeCursorShadow` (from `finishReturnToInventory`) drops the server-side cursor
+  shadow in creative WITHOUT resyncing: it empties the inventory-menu carried and sets the remote carried to empty,
+  so no clearing cursor update is sent and the creative client stays authoritative over the real cursor item.
+  Survival is unaffected (the cursor is server-authoritative there and must keep its carried so the vanilla close
+  re-gives it).
 
 ## 3. Per-shulker identity: the `animation_id` component
 
@@ -170,6 +174,16 @@ Client (`shulker-inventory.client.mixins.json`):
   cosmetically harmless and, for any marker still in the player's inventory, self-heals at the next
   login (the moved-out case above being the only residual).
 - The render side channel is render-thread-confined; correct but order-sensitive.
+- Creative-only transient visual duplicate (cosmetic, client render only, not fully understood). Distinct from the
+  item loss and creative duplication fixed by `dropCreativeCursorShadow` above: this is a render artifact, not a
+  real item. In creative, placing the open source shulker back into a slot at the exact tick its closing animation
+  finishes can briefly show the shulker both in the slot and on the cursor until the next click. It follows from
+  the deliberate close-time desync (the server empties the creative cursor while the client, which authors its own
+  inventory, still renders it). The server stays authoritative at exactly one copy: instrumentation counting the
+  per-shulker marker across the player inventory and the cursor never saw the same marker more than once over a
+  full session of attempts, and the anti-duplication guarantee is unaffected (no path creates a second
+  authoritative stack). The trigger is a single-tick race that could not be reproduced reliably, so the exact
+  conditions are not yet pinned down and it is documented rather than fixed.
 
 ## 8. Compatibility notes for other mod authors
 

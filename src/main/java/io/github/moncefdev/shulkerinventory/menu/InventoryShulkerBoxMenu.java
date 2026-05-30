@@ -6,6 +6,7 @@ import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayloa
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.HashedStack;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.SimpleContainer;
@@ -82,6 +83,24 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	private void finishReturnToInventory(ServerPlayer serverPlayer) {
 		serverPlayer.inventoryMenu.broadcastFullState();
 		ServerPlayNetworking.send(serverPlayer, OpenPlayerInventoryPayload.INSTANCE);
+		dropCreativeCursorShadow(serverPlayer);
+	}
+
+	// In creative the cursor is client-authoritative. The session-close paths can leave a stack on the player
+	// inventory menu's SERVER-side carried: the commit-on-disturbance replay picks the source shulker up, and a
+	// normal close transfers the shulker-menu cursor over. That server carried is only a shadow of the client's
+	// real cursor and has no creative lifecycle (creative slot/drop actions never update it). Left in place it is
+	// re-given by the vanilla inventory close (duplication); and clearing it at close time instead would clobber
+	// the client's still-held cursor (item loss). Since the client already received the item on its cursor from the
+	// broadcast above and stays authoritative over it, we drop the server shadow here WITHOUT resyncing: empty the
+	// carried and tell the remote tracker the client holds empty, so no clearing cursor update is sent. Survival is
+	// untouched (the cursor is server-authoritative there and must keep its carried so the vanilla close re-gives).
+	private static void dropCreativeCursorShadow(ServerPlayer serverPlayer) {
+		if (!serverPlayer.isCreative() || serverPlayer.inventoryMenu.getCarried().isEmpty()) {
+			return;
+		}
+		serverPlayer.inventoryMenu.setCarried(ItemStack.EMPTY);
+		serverPlayer.inventoryMenu.setRemoteCarried(HashedStack.EMPTY);
 	}
 
 	@Override
