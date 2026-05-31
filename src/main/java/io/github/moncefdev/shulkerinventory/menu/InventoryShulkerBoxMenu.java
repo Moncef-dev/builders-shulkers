@@ -31,6 +31,10 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	private final int sourceSlotInMenu;
 	private final long animationId;
 	private boolean alreadySaved = false;
+	// Set when this session ends because the source shulker stack itself was disturbed (grabbed off its slot). The
+	// box then vanishes for other viewers, so the closing animation is broadcast SILENTLY to them (drain the state
+	// without a phantom close sound). A normal close (toggle or Escape) leaves this false and stays sonorous.
+	private boolean disturbed = false;
 
 	public InventoryShulkerBoxMenu(int syncId, Inventory playerInventory, SimpleContainer shulkerContent, int sourceSlotIndex, long animationId) {
 		super(syncId, playerInventory, shulkerContent);
@@ -43,8 +47,8 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	// Mirror a lid animation to the OTHER players who can see the holder, so they see the lid move on the held
 	// shulker too (the holder animates locally and is excluded). Cosmetic broadcast; in singleplayer there are no
 	// other tracking players, so this is a no-op and solo behavior is unchanged.
-	public static void broadcastAnimation(ServerPlayer holder, long animationId, boolean opening) {
-		RemoteShulkerAnimationPayload payload = new RemoteShulkerAnimationPayload(animationId, opening, holder.getId());
+	public static void broadcastAnimation(ServerPlayer holder, long animationId, boolean opening, boolean playSound) {
+		RemoteShulkerAnimationPayload payload = new RemoteShulkerAnimationPayload(animationId, opening, holder.getId(), playSound);
 		for (ServerPlayer viewer : PlayerLookup.tracking(holder)) {
 			// Only send to viewers that run the mod and have registered our channel. This skips vanilla clients
 			// (compatibility: never push our payload to a client that cannot handle it) and any viewer not yet
@@ -109,6 +113,7 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		// worked contents into it, end the session, then replay the action on the inventory menu. Saving always
 		// happens before the move, so the up-to-date stack is what gets picked up or relocated.
 		if (touchesSourceSlot(slotId, button, input)) {
+			disturbed = true;
 			broadcastFullState();
 			if (player instanceof ServerPlayer serverPlayer) {
 				saveContents(serverPlayer);
@@ -183,7 +188,9 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		// close chokepoint (toggle, commit-on-disturbance, Escape, swap all route through it). Held-gated: only when
 		// the shulker is in the hand (visible to them). The opener's own close sound is played on their own client.
 		if (player instanceof ServerPlayer serverPlayer && isHeld(serverPlayer)) {
-			broadcastAnimation(serverPlayer, animationId, false);
+			// Silent close when the source shulker was disturbed (grabbed): the box disappears for viewers, so they
+			// drain the animation state without a phantom close sound. Toggle/Escape closes stay sonorous.
+			broadcastAnimation(serverPlayer, animationId, false, !disturbed);
 		}
 	}
 

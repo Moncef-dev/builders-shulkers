@@ -83,7 +83,7 @@ public class ShulkerInventory implements ModInitializer {
 			// see or hear. The opener's own animation and sound are handled on their own client.
 			boolean held = slotIndex == inventory.getSelectedSlot() || slotIndex == Inventory.SLOT_OFFHAND;
 			if (held) {
-				InventoryShulkerBoxMenu.broadcastAnimation(player, animationId, true);
+				InventoryShulkerBoxMenu.broadcastAnimation(player, animationId, true, true);
 			}
 		});
 

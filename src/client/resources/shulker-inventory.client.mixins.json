@@ -15,7 +15,8 @@
 		"IgnoreAnimationIdSwapMixin",
 		"ItemEntityRenderStateMixin",
 		"ItemEntityRendererMixin",
-		"HeldItemAnimationMixin"
+		"HeldItemAnimationMixin",
+		"FirstPersonHeldItemMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

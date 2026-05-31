@@ -99,9 +99,11 @@ rendered shulker is not one of ours, the mixin returns the original value unchan
 shulkers (and other mods' rendering) are untouched.
 
 The animation id is routed to the renderer through a render-thread-confined side channel in
-`ClientShulkerSession` (set by `GuiItemAtlasMixin` / `ItemEntityRendererMixin` / `HeldItemAnimationMixin`
-around the draw, read by `ShulkerBoxOpennessMixin`). Covers the GUI item icon, the held first-person item,
-dropped item entities, and the item held by an entity in third person (notably another player's hand).
+`ClientShulkerSession` (set by `GuiItemAtlasMixin` / `ItemEntityRendererMixin` / `HeldItemAnimationMixin` /
+`FirstPersonHeldItemMixin` around the draw, read by `ShulkerBoxOpennessMixin`). Covers the GUI item icon,
+dropped item entities, the item held by an entity in third person (notably another player's hand), and the
+local player's own first-person hand. Each shulker is animated only by its own marker through these channels:
+there is no broad fallback (so the local player's animation can never bleed onto an unrelated held shulker).
 
 Shared animation (multiplayer). The animation state machine is per-client, so by default only the player who
 opened a shulker sees its lid move. To make the lid visible on a shulker HELD by another player, the server
@@ -109,7 +111,10 @@ broadcasts open/close events (`RemoteShulkerAnimationPayload`) to the players wh
 clients run the same animation locally (`startOpeningRemote` / `startClosing`). The broadcast is gated on
 `ServerPlayNetworking.canSend` per viewer, so it is never sent to a vanilla client (no mod) or to a viewer that
 is mid-join (which would otherwise error the send). The initiator animates locally and is excluded; in
-singleplayer there are no other viewers, so the broadcast is a no-op and solo behavior is unchanged.
+singleplayer there are no other viewers, so the broadcast is a no-op and solo behavior is unchanged. A close
+that ends because the source shulker was disturbed (grabbed off its slot) is broadcast SILENTLY: the box has
+vanished for viewers, so they drain the animation state without a phantom close sound, while a normal close
+(toggle or Escape) keeps the sound.
 
 ## 5. Mixins and injection points
 
@@ -132,6 +137,11 @@ Client (`shulker-inventory.client.mixins.json`):
 - `ItemEntityRenderStateMixin` / `ItemEntityRendererMixin`: animate the lid on dropped shulkers.
 - `HeldItemAnimationMixin` -> `ItemInHandLayer.submitArmWithItem` (HEAD/RETURN): publish the animation id
   around the third-person held-item draw so the lid animates on a shulker held by an entity (another player).
+- `FirstPersonHeldItemMixin` -> `ItemInHandRenderer.renderItem` (HEAD/RETURN): publish the animation id around
+  the local player's own first-person held-item draw, so their held shulker animates in first person. This
+  replaces an earlier broad fallback in `ShulkerBoxOpennessMixin` (apply the local player's held animation to
+  any shulker with no side channel set), which wrongly rendered other players' held shulkers as open from the
+  local player's view.
 - `IgnoreAnimationIdSwapMixin` -> `ItemInHandRenderer.shouldInstantlyReplaceVisibleItem` (HEAD,
   cancellable): suppress the hand swap animation when two held stacks differ only by `animation_id`
   being added or removed. This is NOT redundant with the vanilla `.ignoreSwapAnimation()` flag.
@@ -148,6 +158,8 @@ Client (`shulker-inventory.client.mixins.json`):
 - `AnimationFinishedPayload` (C2S): the closing animation finished, drop the marker.
 - `RemoteShulkerAnimationPayload` (S2C, broadcast): mirror a lid animation (open or close) to the players who
   can see the holder, so the lid is visible on the shulker held by another player. Gated by `canSend` per viewer.
+  Carries the holder entity id (a mirrored sound plays at the holder's position) and a `playSound` flag (a close
+  caused by disturbing the source shulker is sent silent, so viewers drain the animation without a phantom sound).
 
 ## 7. Known limitations and risks (v1.0.6)
 
