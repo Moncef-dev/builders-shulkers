@@ -1,7 +1,7 @@
-# Shulker Inventory - Technical Documentation (v1.0.6)
+# Shulker Inventory - Technical Documentation (v1.0.7)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.0.6.
+their scope, and known risks. Describes the state as shipped in v1.0.7.
 
 ## Environment
 
@@ -160,7 +160,7 @@ Client (`shulker-inventory.client.mixins.json`):
   Carries the holder entity id (a mirrored sound plays at the holder's position) and a `playSound` flag (a close
   caused by disturbing the source shulker is sent silent, so viewers drain the animation without a phantom sound).
 
-## 7. Known limitations and risks (v1.0.6)
+## 7. Known limitations and risks (v1.0.7)
 
 - Component-equality divergence (observed, not just theoretical). While `animation_id` is present,
   the shulker is not equal by components to an otherwise identical stack without it. This is a real

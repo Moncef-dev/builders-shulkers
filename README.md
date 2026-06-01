@@ -17,6 +17,9 @@ Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
 
+### 1.0.7
+Better compatibility with players who do not have the mod: an open shulker box no longer stops them from joining the server, and on a server without the mod you now get a short message saying so while shulker boxes keep their normal right-click behavior. Open and close sounds are more consistent now: you always hear your own, and other players hear them only for a shulker you are visibly holding. Also fixes several glitches: a phantom close sound, a shulker that could look stuck open to other players, creative item loss or duplication when leaving a shulker, and a brief visual double when placing a shulker back at the instant its lid finished closing.
+
 ### 1.0.6
 When you open a shulker box held in your hand, other players can now see its lid animate too.
 
