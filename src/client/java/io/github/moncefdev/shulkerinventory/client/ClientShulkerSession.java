@@ -1,8 +1,6 @@
 package io.github.moncefdev.shulkerinventory.client;
 
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
-import io.github.moncefdev.shulkerinventory.network.AnimationFinishedPayload;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.sounds.SoundEvents;
@@ -88,7 +86,7 @@ public final class ClientShulkerSession {
 	}
 
 	// Steps every active animation once per client tick: OPENING fills up, CLOSING drains and, when it reaches
-	// zero, tells the server the animation finished so it can drop the marker component.
+	// zero, drops the animation so it stops being rendered.
 	public static void tick() {
 		// Drop an orphaned pending open: if no shulker screen claimed it within the grace window, it was a
 		// re-click the server turned into a close (or a rejected open). Remove its dangling state so nothing
@@ -114,9 +112,7 @@ public final class ClientShulkerSession {
 				case CLOSING -> {
 					anim.progress -= 0.1f;
 					if (anim.progress <= 0f) {
-						long finishedId = entry.getKey();
 						it.remove();
-						ClientPlayNetworking.send(new AnimationFinishedPayload(finishedId));
 					}
 				}
 			}

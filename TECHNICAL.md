@@ -88,8 +88,8 @@ client renderer can recognize the animating stack wherever it is drawn (GUI, han
   removed; that case is handled by `IgnoreAnimationIdSwapMixin` (see section 5 for why both are
   needed).
 - The animation state machine (progress, OPENING/OPENED/CLOSING) is purely client-side in
-  `ClientShulkerSession`. The component is removed via `AnimationFinishedPayload` once the
-  closing animation completes.
+  `ClientShulkerSession`. The marker is never stripped during a session (see section 7 for why); it is
+  cleared at the next login.
 
 ## 4. Rendering (reuse of vanilla openness)
 
@@ -148,14 +148,13 @@ Client (`shulker-inventory.client.mixins.json`):
   Vanilla decides via `ItemStack.matchesIgnoringComponents`, which first short-circuits to false on
   `components.size()` inequality and only consults the ignore predicate afterwards (at equal size).
   So the flag covers a value change of an already-present component, but a component that is present
-  on one stack and absent on the other (open adds it, the finished close removes it) changes the map
-  size and still triggers the swap. This mixin covers exactly that add/remove transition.
+  on one stack and absent on the other (opening a shulker adds it; an untouched shulker has none)
+  changes the map size and still triggers the swap. This mixin covers exactly that add/remove transition.
 
 ## 6. Networking payloads
 
 - `OpenShulkerPayload` (C2S): slot index + animation id (request to open, or toggle closed).
 - `OpenPlayerInventoryPayload` (S2C): reopen the player's inventory screen after a session ends.
-- `AnimationFinishedPayload` (C2S): the closing animation finished, drop the marker.
 - `RemoteShulkerAnimationPayload` (S2C, broadcast): mirror a lid animation (open or close) to the players who
   can see the holder, so the lid is visible on the shulker held by another player. Gated by `canSend` per viewer.
   Carries the holder entity id (a mirrored sound plays at the holder's position) and a `playSound` flag (a close
@@ -170,43 +169,35 @@ Client (`shulker-inventory.client.mixins.json`):
   `IgnoreAnimationIdSwapMixin` has to exist (see section 5). The blast radius stays small because the
   paths most sensitive to component equality (stacking, item merging, ground-entity merging) are
   gated by stackability, and shulker boxes are non-stackable in vanilla, so they never take those
-  paths. The component is also present only briefly (the open/close animation window). The residual
-  effect is cosmetic and short-lived.
-- Disk leak (mitigated, with an irreducible residual). If the client disconnects or crashes mid-animation,
-  `AnimationFinishedPayload` may never arrive and a harmless junk `animation_id` can remain on that shulker (no
-  visual effect: `isAnimating` is false, so the renderer falls back to vanilla openness). Two mitigations narrow
-  it. First, `AnimationFinishedPayload` clears the marker not only from the inventory slots but also from the
-  cursor, so the case where the open shulker was picked onto the cursor (commit-on-disturbance) is healed as soon
-  as the closing animation ends instead of leaking. Second, a login cleanup (`ServerPlayConnectionEvents.JOIN`)
-  strips any leftover marker from the joining player's inventory; there is never a live animation at join time, so
-  this self-heals a leak on the next login and also cleans markers left by earlier sessions retroactively.
-  Residual: a marker on a shulker moved out of the player's inventory (for example into a chest) before the
-  cleanup runs is not reached and stays as harmless junk. A bounded server-side delayed cleanup at session close
-  (clearing the marker after a short grace if the primary payload never removed it) would heal the mid-session and
-  moved-out cases sooner, but it is deliberately not implemented: it would require an always-on per-tick scheduler
-  and extra coupling, not worth it for a leak that is already cosmetically harmless and self-heals at the next
-  login for any marker still in the inventory.
-- Why the residual leak is irreducible (not merely unimplemented). The lid animation needs a marker that lives on
-  the stack for the animation's lifetime (about half a second), and that marker must be encodable/persistent: a
-  stack sitting in a container is hashed during container-click validation, and a transient (non-encodable)
-  component throws and crashes the click handler. So the marker is briefly written to disk by design. Minecraft
-  `ItemStack`s are value objects that are COPIED on almost every move, so the live reference a close-time cleanup
-  would scrub can become a stale copy elsewhere the instant the player relocates the shulker mid-animation.
-  Reliably following that copy would require either scanning every container in the world each tick or maintaining
-  a per-stack identity registry, both heavier and more invasive than the harmless, self-healing junk they would
-  remove. The leak is therefore reduced to its practical floor (immediate clear on a normal finish, cursor
-  included; login sweep otherwise) and the last residual is accepted.
+  paths. The marker now persists from the open until the next login (see the next bullet), not only the
+  animation window, but for these non-stackable items the divergence stays cosmetic and inert.
+- Marker lifetime: retained for the whole session, cleared at login (by design). The lid animation needs a marker
+  that lives on the stack for the animation's lifetime, and that marker must be encodable/persistent: a stack
+  sitting in a container is hashed during container-click validation, and a transient (non-encodable) component
+  throws and crashes the click handler. So the marker is written to the stack by design. We do NOT remove it when
+  the animation ends, nor at any other mid-session point (see the next bullet for why), so after a close the
+  `animation_id` stays on the shulker. This is harmless: an id with no live animation renders as a closed lid
+  (`isAnimating` is false, the renderer falls back to vanilla openness), and the marker stays identical on client
+  and server, so container-click hashing still matches. It is cleared at the next login
+  (`ServerPlayConnectionEvents.JOIN` strips any leftover from the joining player's inventory; there is never a live
+  animation at join time and the whole inventory re-syncs on join, so this is safe), and it is overwritten anyway
+  the next time that shulker is opened. Login covers every way a prior session can end (quit, kick, crash) and
+  retroactively cleans markers left by earlier sessions.
+- Why the marker is not stripped mid-session (this removed a former transient visual duplicate). An earlier build
+  cleared the marker the instant the closing animation finished, including off the cursor. That async, server-side
+  strip mutates an inventory or cursor stack and emits a slot/cursor update; under load it could land on the same
+  client frame as a concurrent click prediction (for example placing the shulker back as the animation ends),
+  briefly rendering the shulker BOTH in the slot and on the cursor until the next click reconciled it. It was a
+  pure render artifact, observed in both creative and survival: the server stayed authoritative at exactly one copy
+  throughout (instrumentation counting the per-shulker marker across the inventory and the cursor never saw a
+  marker more than once over a full session, and no path creates a second authoritative stack, so the
+  anti-duplication guarantee is intact). Removing all mid-session stripping eliminates the artifact at the source.
+  A finer trigger would not help anyway: `ItemStack`s are value objects COPIED on almost every move, so the live
+  reference a close-time cleanup would scrub can become a stale copy elsewhere the instant the player relocates the
+  shulker, and reliably following that copy would require per-tick world scans or a per-stack identity registry.
+  Login is the one cheap, safe cleanup point, and the brief on-stack residue between a close and the next login is
+  accepted.
 - The render side channel is render-thread-confined; correct but order-sensitive.
-- Creative-only transient visual duplicate (cosmetic, client render only, not fully understood). Distinct from the
-  item loss and creative duplication fixed by `dropCreativeCursorShadow` above: this is a render artifact, not a
-  real item. In creative, placing the open source shulker back into a slot at the exact tick its closing animation
-  finishes can briefly show the shulker both in the slot and on the cursor until the next click. It follows from
-  the deliberate close-time desync (the server empties the creative cursor while the client, which authors its own
-  inventory, still renders it). The server stays authoritative at exactly one copy: instrumentation counting the
-  per-shulker marker across the player inventory and the cursor never saw the same marker more than once over a
-  full session of attempts, and the anti-duplication guarantee is unaffected (no path creates a second
-  authoritative stack). The trigger is a single-tick race that could not be reproduced reliably, so the exact
-  conditions are not yet pinned down and it is documented rather than fixed.
 
 ## 8. Compatibility notes for other mod authors
 

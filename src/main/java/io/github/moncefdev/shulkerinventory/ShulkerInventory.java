@@ -1,7 +1,6 @@
 package io.github.moncefdev.shulkerinventory;
 
 import io.github.moncefdev.shulkerinventory.menu.InventoryShulkerBoxMenu;
-import io.github.moncefdev.shulkerinventory.network.AnimationFinishedPayload;
 import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
@@ -28,7 +27,6 @@ public class ShulkerInventory implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		PayloadTypeRegistry.serverboundPlay().register(OpenShulkerPayload.TYPE, OpenShulkerPayload.STREAM_CODEC);
-		PayloadTypeRegistry.serverboundPlay().register(AnimationFinishedPayload.TYPE, AnimationFinishedPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(OpenPlayerInventoryPayload.TYPE, OpenPlayerInventoryPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RemoteShulkerAnimationPayload.TYPE, RemoteShulkerAnimationPayload.STREAM_CODEC);
 
@@ -87,34 +85,14 @@ public class ShulkerInventory implements ModInitializer {
 			}
 		});
 
-		ServerPlayNetworking.registerGlobalReceiver(AnimationFinishedPayload.TYPE, (payload, context) -> {
-			var player = context.player();
-			long animationId = payload.animationId();
-			Inventory inventory = player.getInventory();
-			for (int i = 0; i < inventory.getContainerSize(); i++) {
-				ItemStack stack = inventory.getItem(i);
-				Long stackId = ShulkerAnimationMarker.get(stack);
-				if (stackId != null && stackId == animationId) {
-					ShulkerAnimationMarker.remove(stack);
-				}
-			}
-			// Also clear the marker off the cursor. If the source shulker was picked up onto the cursor while open
-			// (commit-on-disturbance), it leaves the inventory slots the loop scans, so the marker would otherwise
-			// stick. The marker is removed only once the closing animation has finished, so the animation still
-			// plays. In creative the server cursor is empty (we hand the cursor to the client at session close), so
-			// this is a no-op there and a tiny benign residue may ride the client cursor until the next login scan.
-			ItemStack carried = player.containerMenu.getCarried();
-			Long carriedId = ShulkerAnimationMarker.get(carried);
-			if (carriedId != null && carriedId == animationId) {
-				ShulkerAnimationMarker.remove(carried);
-			}
-		});
-
-		// Login cleanup (safety net). The animation_id marker is normally removed by AnimationFinishedPayload
-		// when the closing animation ends. If that payload never arrives (disconnect or crash mid-animation),
-		// a harmless leftover marker can persist on a shulker. There is never a live animation at join time, so
-		// strip any leftover marker from the joining player's inventory. This also retroactively cleans markers
-		// leaked by earlier sessions.
+		// Login cleanup. We deliberately never strip the animation_id marker DURING a session: an async strip that
+		// mutates an inventory or cursor stack mid-session emits a slot/cursor update that can collide with a
+		// concurrent click prediction on the client, briefly rendering a duplicated shulker. A leftover marker is
+		// harmless in the meantime (an id with no live animation renders as a closed lid, and it stays identical on
+		// client and server so click hashing still matches), so we clear it at the next safe point: login. There is
+		// never a live animation at join time, and the whole inventory re-syncs on join, so stripping here is safe.
+		// Login also covers every way a previous session could end (quit, kick, crash) and cleans markers left by
+		// earlier sessions.
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			Inventory inventory = handler.player.getInventory();
 			int cleaned = 0;
