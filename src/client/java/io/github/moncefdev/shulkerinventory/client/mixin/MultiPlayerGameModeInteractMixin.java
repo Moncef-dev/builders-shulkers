@@ -2,10 +2,10 @@ package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildClientSwap;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildMode;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -32,7 +32,7 @@ public abstract class MultiPlayerGameModeInteractMixin {
 			return original.call(player, entity, hit, hand);
 		}
 		ItemStack shulker = player.getMainHandItem();
-		if (shulker.isEmpty() || !shulker.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+		if (!ShulkerContents.isShulker(shulker)) {
 			return original.call(player, entity, hit, hand);
 		}
 		return PocketBuildClientSwap.runPredicted(player, shulker, () -> original.call(player, entity, hit, hand));

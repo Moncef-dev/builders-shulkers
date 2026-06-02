@@ -4,9 +4,9 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import io.github.moncefdev.shulkerinventory.PocketBuildContentSwap;
 import io.github.moncefdev.shulkerinventory.PocketBuildServerState;
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
@@ -30,7 +30,7 @@ public abstract class ServerPlayerGameModeMixin {
 			return original.call(player, level, stack, hand, hit);
 		}
 		ItemStack shulker = player.getMainHandItem();
-		if (shulker.isEmpty() || !shulker.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+		if (!ShulkerContents.isShulker(shulker)) {
 			return original.call(player, level, stack, hand, hit);
 		}
 		// Pass the swapped-in content as BOTH the stack argument and the held item, so the whole vanilla flow uses it.

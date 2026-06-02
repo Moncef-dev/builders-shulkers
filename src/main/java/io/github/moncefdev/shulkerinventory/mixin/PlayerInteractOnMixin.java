@@ -4,7 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import io.github.moncefdev.shulkerinventory.PocketBuildContentSwap;
 import io.github.moncefdev.shulkerinventory.PocketBuildServerState;
-import net.minecraft.tags.ItemTags;
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -32,7 +32,7 @@ public abstract class PlayerInteractOnMixin {
 			return original.call(entity, hand, vec);
 		}
 		ItemStack shulker = self.getMainHandItem();
-		if (shulker.isEmpty() || !shulker.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+		if (!ShulkerContents.isShulker(shulker)) {
 			return original.call(entity, hand, vec);
 		}
 		// interactOn reads the hand item itself, so the swapped-in content drives the interaction; held is unused here.

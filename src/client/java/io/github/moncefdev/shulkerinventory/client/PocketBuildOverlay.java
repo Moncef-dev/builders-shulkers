@@ -4,9 +4,9 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.core.NonNullList;
 import net.minecraft.resources.Identifier;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 
 // Peek overlay: while in Pocket-Build mode AND Ctrl is held, draw the held shulker's contents as the actual vanilla
@@ -50,7 +50,7 @@ public final class PocketBuildOverlay {
 			return;
 		}
 		ItemStack shulker = mc.player.getMainHandItem();
-		if (shulker.isEmpty() || !shulker.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+		if (!ShulkerContents.isShulker(shulker)) {
 			return;
 		}
 		NonNullList<ItemStack> items = PocketBuildMode.snapshotContents(shulker);

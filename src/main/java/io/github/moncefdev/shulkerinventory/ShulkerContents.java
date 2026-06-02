@@ -2,6 +2,7 @@ package io.github.moncefdev.shulkerinventory;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
@@ -18,6 +19,12 @@ public final class ShulkerContents {
 
 	// The number of content slots in a shulker, straight from vanilla (rows x columns).
 	public static final int SIZE = ShulkerBoxBlockEntity.CONTAINER_SIZE;
+
+	// Whether this stack is a shulker box, detected by the vanilla tag (not a hardcoded class), so modded shulkers
+	// in the tag are recognized too. The single detection used everywhere the mod special-cases a shulker.
+	public static boolean isShulker(ItemStack stack) {
+		return !stack.isEmpty() && stack.typeHolder().is(ItemTags.SHULKER_BOXES);
+	}
 
 	// Reads the stack's CONTAINER component into a fresh SIZE-slot list (empty for unused slots).
 	public static NonNullList<ItemStack> read(ItemStack shulker) {

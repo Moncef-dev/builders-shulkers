@@ -1,6 +1,7 @@
 package io.github.moncefdev.shulkerinventory.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -12,7 +13,6 @@ import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -82,7 +82,7 @@ public final class PocketBuildClient {
 				return;
 			}
 			ItemStack held = mc.player.getMainHandItem();
-			boolean stillShulker = !held.isEmpty() && held.typeHolder().is(ItemTags.SHULKER_BOXES);
+			boolean stillShulker = ShulkerContents.isShulker(held);
 			// Only opening a container UI (the player's own inventory, a chest, any container) ends the mode, like
 			// the chest GUI flow. The pause menu, options, chat, etc. leave the mode running.
 			if (mc.screen instanceof AbstractContainerScreen || !stillShulker
@@ -107,7 +107,7 @@ public final class PocketBuildClient {
 			return InteractionResult.PASS;
 		}
 		ItemStack held = player.getMainHandItem();
-		boolean shulker = !held.isEmpty() && held.typeHolder().is(ItemTags.SHULKER_BOXES);
+		boolean shulker = ShulkerContents.isShulker(held);
 		boolean ctrl = InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL);
 
 		if (PocketBuildMode.isActive()) {
@@ -157,7 +157,7 @@ public final class PocketBuildClient {
 			return InteractionResult.PASS;
 		}
 		ItemStack held = player.getMainHandItem();
-		if (ctrl && !held.isEmpty() && held.typeHolder().is(ItemTags.SHULKER_BOXES)
+		if (ctrl && ShulkerContents.isShulker(held)
 				&& mc.screen == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {
 			if (rightClickReleased) {
 				enterMode(player, held);

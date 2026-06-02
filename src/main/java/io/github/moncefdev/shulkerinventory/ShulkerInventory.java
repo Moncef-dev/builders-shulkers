@@ -11,7 +11,6 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.NonNullList;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
@@ -52,7 +51,7 @@ public class ShulkerInventory implements ModInitializer {
 			}
 
 			ItemStack stack = inventory.getItem(slotIndex);
-			if (stack.isEmpty() || !stack.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+			if (!ShulkerContents.isShulker(stack)) {
 				LOGGER.warn("Player {} tried to open non-shulker stack at slot {}: {}",
 						player.getName().getString(), slotIndex, stack);
 				return;
@@ -78,7 +77,7 @@ public class ShulkerInventory implements ModInitializer {
 			// Mirror the opening lid animation/sound to the OTHER players who can see this player, but only when the
 			// shulker is HELD (visible in hand): an open from an invisible inventory slot has nothing for them to
 			// see or hear. The opener's own animation and sound are handled on their own client.
-			boolean held = slotIndex == inventory.getSelectedSlot() || slotIndex == Inventory.SLOT_OFFHAND;
+			boolean held = InventoryShulkerBoxMenu.isHeldSlot(inventory, slotIndex);
 			if (held) {
 				InventoryShulkerBoxMenu.broadcastAnimation(player, animationId, true, true);
 			}
@@ -97,7 +96,7 @@ public class ShulkerInventory implements ModInitializer {
 				return;
 			}
 			ItemStack stack = inventory.getItem(hotbarSlot);
-			if (stack.isEmpty() || !stack.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+			if (!ShulkerContents.isShulker(stack)) {
 				return;
 			}
 			if (payload.entering()) {

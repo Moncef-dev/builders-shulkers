@@ -8,12 +8,10 @@ import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.HashedStack;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerInput;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -39,7 +37,7 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		super(syncId, playerInventory, shulkerContent);
 		this.shulkerContent = shulkerContent;
 		this.sourceSlotIndex = sourceSlotIndex;
-		this.sourceSlotInMenu = findMenuSlotIndex(playerInventory, sourceSlotIndex);
+		this.sourceSlotInMenu = findInventorySlot(this.slots, sourceSlotIndex);
 		this.animationId = animationId;
 	}
 
@@ -59,10 +57,14 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		}
 	}
 
-	private int findMenuSlotIndex(Inventory inventory, int containerSlot) {
-		for (int i = 0; i < this.slots.size(); i++) {
-			Slot s = this.slots.get(i);
-			if (s.container == inventory && s.getContainerSlot() == containerSlot) {
+	// Finds the menu slot index backed by the given player-inventory container slot, or -1. The shulker content is a
+	// SimpleContainer (not an Inventory), so matching "the slot whose container is an Inventory" uniquely targets the
+	// player-inventory slots. Shared by the constructor (our own menu) and the disturbance replay (the player's
+	// inventory menu).
+	private static int findInventorySlot(List<Slot> slots, int containerSlot) {
+		for (int i = 0; i < slots.size(); i++) {
+			Slot s = slots.get(i);
+			if (s.container instanceof Inventory && s.getContainerSlot() == containerSlot) {
 				return i;
 			}
 		}
@@ -150,21 +152,11 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		if (!(source.container instanceof Inventory)) {
 			return;
 		}
-		int targetSlot = findInventoryMenuSlotIndex(serverPlayer.inventoryMenu, source.getContainerSlot());
+		int targetSlot = findInventorySlot(serverPlayer.inventoryMenu.slots, source.getContainerSlot());
 		if (targetSlot < 0) {
 			return;
 		}
 		serverPlayer.inventoryMenu.clicked(targetSlot, button, input, serverPlayer);
-	}
-
-	private static int findInventoryMenuSlotIndex(InventoryMenu inventoryMenu, int containerSlot) {
-		for (int i = 0; i < inventoryMenu.slots.size(); i++) {
-			Slot s = inventoryMenu.slots.get(i);
-			if (s.container instanceof Inventory && s.getContainerSlot() == containerSlot) {
-				return i;
-			}
-		}
-		return -1;
 	}
 
 	private boolean touchesSourceSlot(int slotId, int button, ContainerInput input) {
@@ -194,15 +186,20 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	}
 
 	private boolean isHeld(ServerPlayer player) {
-		return sourceSlotIndex == player.getInventory().getSelectedSlot()
-				|| sourceSlotIndex == Inventory.SLOT_OFFHAND;
+		return isHeldSlot(player.getInventory(), sourceSlotIndex);
+	}
+
+	// Whether a player-inventory slot is currently "held", i.e. visible in hand: the selected hotbar slot or the
+	// off-hand. Shared with the open handler so the "what counts as held" rule lives in one place.
+	public static boolean isHeldSlot(Inventory inventory, int slot) {
+		return slot == inventory.getSelectedSlot() || slot == Inventory.SLOT_OFFHAND;
 	}
 
 	// Writes the working container back into the source stack's CONTAINER component. Guards that the source slot
 	// still holds a shulker (it may have moved), to avoid writing onto the wrong item.
 	private void saveContents(Player player) {
 		ItemStack sourceStack = player.getInventory().getItem(sourceSlotIndex);
-		if (sourceStack.isEmpty() || !sourceStack.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+		if (!ShulkerContents.isShulker(sourceStack)) {
 			ShulkerInventory.LOGGER.warn(
 					"Cannot save shulker contents: source slot {} no longer contains a shulker (item: {})",
 					sourceSlotIndex, sourceStack);

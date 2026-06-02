@@ -1,8 +1,8 @@
 package io.github.moncefdev.shulkerinventory.client.mixin;
 
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildMode;
 import net.minecraft.client.gui.Gui;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,7 +20,7 @@ public abstract class GuiSelectedItemNameMixin {
 			target = "Lnet/minecraft/world/entity/player/Inventory;getSelectedItem()Lnet/minecraft/world/item/ItemStack;"))
 	private ItemStack shulkerInventory$nameSelectedContent(Inventory inventory) {
 		ItemStack held = inventory.getSelectedItem();
-		if (PocketBuildMode.isActive() && !held.isEmpty() && held.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+		if (PocketBuildMode.isActive() && ShulkerContents.isShulker(held)) {
 			return PocketBuildMode.selectedStack(held);
 		}
 		return held;
