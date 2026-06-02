@@ -3,15 +3,14 @@ package io.github.moncefdev.shulkerinventory.mixin;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import io.github.moncefdev.shulkerinventory.PocketBuildServerState;
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 
@@ -36,8 +35,7 @@ public abstract class PlayerInteractOnMixin {
 		if (shulker.isEmpty() || !shulker.typeHolder().is(ItemTags.SHULKER_BOXES)) {
 			return original.call(entity, hand, vec);
 		}
-		NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
-		shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).copyInto(items);
+		NonNullList<ItemStack> items = ShulkerContents.read(shulker);
 		// Nothing selected (empty shulker -> slot -1): swap an EMPTY hand so the vanilla interaction runs with no item
 		// (e.g. just rotating a framed item), never falling through to dropping the shulker into the frame.
 		int slot = PocketBuildServerState.selectedSlot(self.getUUID());
@@ -54,7 +52,7 @@ public abstract class PlayerInteractOnMixin {
 				ItemStack remaining = content.copy();
 				remaining.shrink(consumed);
 				items.set(slot, remaining);
-				shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
+				ShulkerContents.write(shulker, items);
 			}
 		}
 	}

@@ -3,15 +3,14 @@ package io.github.moncefdev.shulkerinventory.mixin;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import io.github.moncefdev.shulkerinventory.PocketBuildServerState;
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
@@ -36,8 +35,7 @@ public abstract class ServerPlayerGameModeMixin {
 		if (shulker.isEmpty() || !shulker.typeHolder().is(ItemTags.SHULKER_BOXES)) {
 			return original.call(player, level, stack, hand, hit);
 		}
-		NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
-		shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).copyInto(items);
+		NonNullList<ItemStack> items = ShulkerContents.read(shulker);
 		// In the mode with nothing selected (empty shulker -> slot -1) the content is empty: we swap an EMPTY hand so
 		// the vanilla flow places nothing (and the shulker, never the item used here, is never placed by mistake).
 		int slot = PocketBuildServerState.selectedSlot(player.getUUID());
@@ -55,7 +53,7 @@ public abstract class ServerPlayerGameModeMixin {
 				ItemStack remaining = content.copy();
 				remaining.shrink(consumed);
 				items.set(slot, remaining);
-				shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
+				ShulkerContents.write(shulker, items);
 			}
 		}
 	}

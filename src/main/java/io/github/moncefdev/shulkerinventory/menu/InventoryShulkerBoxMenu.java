@@ -1,11 +1,11 @@
 package io.github.moncefdev.shulkerinventory.menu;
 
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.ShulkerInventory;
 import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.HashedStack;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
@@ -17,7 +17,6 @@ import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -214,6 +213,6 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		for (int i = 0; i < shulkerContent.getContainerSize(); i++) {
 			items.add(shulkerContent.getItem(i));
 		}
-		sourceStack.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
+		ShulkerContents.write(sourceStack, items);
 	}
 }

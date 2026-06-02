@@ -1,18 +1,15 @@
 package io.github.moncefdev.shulkerinventory.client;
 
+import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 
-// Client-side state for the Pocket-Build prototype: whether the mode is active, which hotbar slot holds the source
+// Client-side state for Pocket-Build: whether the mode is active, which hotbar slot holds the source
 // shulker, which content slot is selected, and the animation id allocated for this session. The lid animation runs
 // through the shared marker machinery (the server tags the held shulker, the client drives the animation by that
 // id), so this class no longer computes openness itself.
 public final class PocketBuildMode {
 	private PocketBuildMode() {}
-
-	public static final int CONTAINER_SIZE = 27;
 
 	private static boolean active = false;
 	private static int sourceHotbarSlot = -1;
@@ -55,9 +52,9 @@ public final class PocketBuildMode {
 	// nothing during a build.
 	public static void cycle(int direction, ItemStack shulker) {
 		NonNullList<ItemStack> items = readContents(shulker);
-		int[] nonEmpty = new int[CONTAINER_SIZE];
+		int[] nonEmpty = new int[ShulkerContents.SIZE];
 		int count = 0;
-		for (int i = 0; i < CONTAINER_SIZE; i++) {
+		for (int i = 0; i < ShulkerContents.SIZE; i++) {
 			if (!items.get(i).isEmpty()) {
 				nonEmpty[count++] = i;
 			}
@@ -77,28 +74,25 @@ public final class PocketBuildMode {
 		selectedContentSlot = nonEmpty[pos];
 	}
 
-	// A snapshot of the held shulker's 27 content stacks (for the peek overlay rendering).
+	// A snapshot of the held shulker's content stacks (for the peek overlay rendering).
 	public static NonNullList<ItemStack> snapshotContents(ItemStack shulker) {
 		return readContents(shulker);
 	}
 
 	// The content stack currently selected, or EMPTY if none.
 	public static ItemStack selectedStack(ItemStack shulker) {
-		if (selectedContentSlot < 0 || selectedContentSlot >= CONTAINER_SIZE) {
+		if (selectedContentSlot < 0 || selectedContentSlot >= ShulkerContents.SIZE) {
 			return ItemStack.EMPTY;
 		}
 		return readContents(shulker).get(selectedContentSlot);
 	}
 
 	private static NonNullList<ItemStack> readContents(ItemStack shulker) {
-		ItemContainerContents contents = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
-		NonNullList<ItemStack> items = NonNullList.withSize(CONTAINER_SIZE, ItemStack.EMPTY);
-		contents.copyInto(items);
-		return items;
+		return ShulkerContents.read(shulker);
 	}
 
 	private static int firstNonEmptySlot(NonNullList<ItemStack> items) {
-		for (int i = 0; i < CONTAINER_SIZE; i++) {
+		for (int i = 0; i < ShulkerContents.SIZE; i++) {
 			if (!items.get(i).isEmpty()) {
 				return i;
 			}

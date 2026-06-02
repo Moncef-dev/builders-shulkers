@@ -11,14 +11,12 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,12 +58,9 @@ public class ShulkerInventory implements ModInitializer {
 				return;
 			}
 
-			ItemContainerContents contents = stack.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
-			NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
-			contents.copyInto(items);
-
-			SimpleContainer shulkerContent = new SimpleContainer(27);
-			for (int i = 0; i < 27; i++) {
+			NonNullList<ItemStack> items = ShulkerContents.read(stack);
+			SimpleContainer shulkerContent = new SimpleContainer(ShulkerContents.SIZE);
+			for (int i = 0; i < ShulkerContents.SIZE; i++) {
 				shulkerContent.setItem(i, items.get(i));
 			}
 
