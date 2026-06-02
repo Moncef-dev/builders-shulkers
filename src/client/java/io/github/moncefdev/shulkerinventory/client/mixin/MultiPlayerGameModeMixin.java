@@ -2,6 +2,7 @@ package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import io.github.moncefdev.shulkerinventory.client.PocketBuildClientSwap;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildMode;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
@@ -31,16 +32,6 @@ public abstract class MultiPlayerGameModeMixin {
 		if (shulker.isEmpty() || !shulker.typeHolder().is(ItemTags.SHULKER_BOXES)) {
 			return original.call(player, hand, hit);
 		}
-		// An empty selection (e.g. an empty shulker) swaps an EMPTY hand: the vanilla flow then places nothing, instead
-		// of falling through to placing the shulker itself.
-		ItemStack content = PocketBuildMode.selectedStack(shulker);
-		int handSlot = player.getInventory().getSelectedSlot();
-		ItemStack held = content.copy();
-		player.getInventory().setItem(handSlot, held);
-		try {
-			return original.call(player, hand, hit);
-		} finally {
-			player.getInventory().setItem(handSlot, shulker);
-		}
+		return PocketBuildClientSwap.runPredicted(player, shulker, () -> original.call(player, hand, hit));
 	}
 }

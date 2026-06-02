@@ -2,9 +2,8 @@ package io.github.moncefdev.shulkerinventory.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import io.github.moncefdev.shulkerinventory.PocketBuildContentSwap;
 import io.github.moncefdev.shulkerinventory.PocketBuildServerState;
-import io.github.moncefdev.shulkerinventory.ShulkerContents;
-import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.tags.ItemTags;
@@ -16,13 +15,12 @@ import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 
 // Content-swap (server authority): when the player is in Pocket-Build mode, a normal vanilla use-on-block runs on the
-// SELECTED CONTENT of the held shulker instead of on the shulker. We briefly put a copy of the content in the hand,
-// run the WHOLE vanilla flow on it, then restore the shulker and remove from its CONTAINER exactly what vanilla
-// consumed. Everything emerges (interact-vs-place, adventure-mode permissions, orientation, the place sound for
-// other players, survival-only consume); the shulker is never the item used; no reimplemented conditions.
-//
-// @WrapMethod wraps the entire method in our own try/finally, so the shulker is ALWAYS restored even if the vanilla
-// flow throws (anti-duplication: the held shulker can never be lost mid-swap).
+// SELECTED CONTENT of the held shulker instead of on the shulker. PocketBuildContentSwap briefly puts a copy of the
+// content in the hand, runs the WHOLE vanilla flow on it, then restores the shulker and removes from its CONTAINER
+// exactly what vanilla consumed. Everything emerges (interact-vs-place, adventure-mode permissions, orientation, the
+// place sound for other players, survival-only consume); the shulker is never the item used; no reimplemented
+// conditions. The swap helper wraps the flow in its own try/finally, so the shulker is ALWAYS restored even if the
+// vanilla flow throws (anti-duplication: the held shulker can never be lost mid-swap).
 @Mixin(ServerPlayerGameMode.class)
 public abstract class ServerPlayerGameModeMixin {
 	@WrapMethod(method = "useItemOn")
@@ -35,26 +33,7 @@ public abstract class ServerPlayerGameModeMixin {
 		if (shulker.isEmpty() || !shulker.typeHolder().is(ItemTags.SHULKER_BOXES)) {
 			return original.call(player, level, stack, hand, hit);
 		}
-		NonNullList<ItemStack> items = ShulkerContents.read(shulker);
-		// In the mode with nothing selected (empty shulker -> slot -1) the content is empty: we swap an EMPTY hand so
-		// the vanilla flow places nothing (and the shulker, never the item used here, is never placed by mistake).
-		int slot = PocketBuildServerState.selectedSlot(player.getUUID());
-		ItemStack content = slot >= 0 ? items.get(slot) : ItemStack.EMPTY;
-		int handSlot = player.getInventory().getSelectedSlot();
-		ItemStack held = content.copy();
-		player.getInventory().setItem(handSlot, held);
-		try {
-			// Pass the content as BOTH the stack argument and the held item, so the whole vanilla flow uses it.
-			return original.call(player, level, held, hand, hit);
-		} finally {
-			player.getInventory().setItem(handSlot, shulker);
-			int consumed = content.getCount() - held.getCount();
-			if (consumed > 0) {
-				ItemStack remaining = content.copy();
-				remaining.shrink(consumed);
-				items.set(slot, remaining);
-				ShulkerContents.write(shulker, items);
-			}
-		}
+		// Pass the swapped-in content as BOTH the stack argument and the held item, so the whole vanilla flow uses it.
+		return PocketBuildContentSwap.runOnServer(player, shulker, held -> original.call(player, level, held, hand, hit));
 	}
 }
