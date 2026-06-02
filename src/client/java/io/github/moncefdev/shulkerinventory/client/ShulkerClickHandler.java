@@ -36,13 +36,10 @@ public final class ShulkerClickHandler {
 		// mod, fall through to vanilla so the shulker keeps its normal right-click behavior (no dead clicks).
 		if (!ClientPlayNetworking.canSend(OpenShulkerPayload.TYPE)) return false;
 
-		// Resume the lid from its current openness if this shulker is still mid-animation (e.g. a quick reopen right
-		// after closing), so it does not visibly snap shut before reopening. The marker still rides the stack, so
-		// its closing animation is still queryable here; a shulker that is not animating yields 0 (open from closed).
-		Long currentId = ClientShulkerSession.getAnimationIdForStack(stack);
-		float resumeProgress = currentId != null ? ClientShulkerSession.currentProgress(currentId) : 0f;
-		long animationId = ClientShulkerSession.allocateId();
-		ClientShulkerSession.startOpening(animationId, resumeProgress);
+		// Begin the lid opening, resuming from the shulker's current openness so a quick reopen continues from where
+		// the closing lid is instead of snapping shut. Shared with Pocket-Build via ClientShulkerSession
+		// .beginHeldOpening; armScreen=true also arms this GUI flow's pending-screen cleanup.
+		long animationId = ClientShulkerSession.beginHeldOpening(stack, true);
 		ClientPlayNetworking.send(new OpenShulkerPayload(containerSlot, animationId));
 		return true;
 	}

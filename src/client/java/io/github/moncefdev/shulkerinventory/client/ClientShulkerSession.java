@@ -63,16 +63,25 @@ public final class ClientShulkerSession {
 		return id;
 	}
 
-	public static void startOpening(long animationId, float initialProgress) {
-		pendingIdForScreen = animationId;
-		pendingIdTtl = PENDING_OPEN_GRACE_TICKS;
-		AnimationState anim = animations.computeIfAbsent(animationId, k -> new AnimationState());
+	// Begin the lid OPENING animation, with a freshly-allocated id, for a shulker the local player just opened (the
+	// inventory GUI, or Pocket-Build), resuming from the stack's CURRENT animation openness so a quick reopen
+	// continues from where the closing lid is instead of snapping shut to 0 first. A stack that is not mid-animation
+	// resumes from 0 (opens from closed). armScreen also arms the pending-screen cleanup used by the GUI flow;
+	// Pocket-Build has no screen and passes false. Returns the new id to send to the server. Shared by both local
+	// open modes, so the resume behaviour can never diverge between them again.
+	public static long beginHeldOpening(ItemStack stack, boolean armScreen) {
+		Long currentId = getAnimationIdForStack(stack);
+		float resume = currentId != null ? currentProgress(currentId) : 0f;
+		long newId = allocateId();
+		AnimationState anim = animations.computeIfAbsent(newId, k -> new AnimationState());
 		anim.status = AnimationStatus.OPENING;
-		// Resume from the openness the shulker is rendered at right now: a quick reopen of a shulker whose closing
-		// lid is still draining continues from there instead of snapping shut to 0 first. A fresh open (or a
-		// different shulker that is not mid-animation) passes 0 and opens from fully closed as before.
-		anim.progress = initialProgress;
-		anim.progressOld = initialProgress;
+		anim.progress = resume;
+		anim.progressOld = resume;
+		if (armScreen) {
+			pendingIdForScreen = newId;
+			pendingIdTtl = PENDING_OPEN_GRACE_TICKS;
+		}
+		return newId;
 	}
 
 	// Starts an animation that mirrors another player's shulker (driven by a server broadcast), with NO pending

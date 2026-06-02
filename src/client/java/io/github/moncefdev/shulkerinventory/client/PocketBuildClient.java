@@ -143,9 +143,14 @@ public final class PocketBuildClient {
 
 	private static void enterMode(Player player, ItemStack held) {
 		int slot = player.getInventory().getSelectedSlot();
-		long id = ClientShulkerSession.allocateId();
+		// Begin the lid opening, resuming from the shulker's current openness (shared with the inventory open mode via
+		// ClientShulkerSession.beginHeldOpening), so a quick re-enter continues from where the closing lid is instead
+		// of snapping shut. No screen here, so armScreen=false. The server tags the held stack with this id (synced
+		// back) so the render resolves the marker to this animation across every context.
+		long id = ClientShulkerSession.beginHeldOpening(held, false);
 		PocketBuildMode.enter(slot, held, id);
 		ClientPlayNetworking.send(new PocketBuildModePayload(true, slot, id, PocketBuildMode.selectedContentSlot()));
+		ClientShulkerSession.playOwnSound(true);
 	}
 
 	private static void exitMode() {
@@ -155,5 +160,7 @@ public final class PocketBuildClient {
 		if (ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {
 			ClientPlayNetworking.send(new PocketBuildModePayload(false, slot, id, -1));
 		}
+		ClientShulkerSession.startClosing(id);
+		ClientShulkerSession.playOwnSound(false);
 	}
 }

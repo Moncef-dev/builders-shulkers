@@ -90,7 +90,10 @@ public class ShulkerInventory implements ModInitializer {
 		});
 
 		// Pocket-Build mode: the player entered or left the mode holding the shulker at hotbarSlot. Track the
-		// server-side mode state (the selected content slot) so a vanilla use-on packet can swap in the right content.
+		// server-side mode state (the selected content slot) so a vanilla use-on packet can swap in the right content,
+		// and drive the lid animation exactly like an inventory open but WITHOUT opening a menu: on enter, tag the held
+		// shulker with the animation id (so every render context animates it) and broadcast the open to viewers who can
+		// see the holder; on leave, broadcast the close (the marker persists and is cleaned at login, like the GUI).
 		ServerPlayNetworking.registerGlobalReceiver(PocketBuildModePayload.TYPE, (payload, context) -> {
 			var player = context.player();
 			int hotbarSlot = payload.hotbarSlot();
@@ -104,8 +107,11 @@ public class ShulkerInventory implements ModInitializer {
 			}
 			if (payload.entering()) {
 				PocketBuildServerState.enter(player.getUUID(), payload.contentSlot());
+				ShulkerAnimationMarker.set(stack, payload.animationId());
+				InventoryShulkerBoxMenu.broadcastAnimation(player, payload.animationId(), true, true);
 			} else {
 				PocketBuildServerState.exit(player.getUUID());
+				InventoryShulkerBoxMenu.broadcastAnimation(player, payload.animationId(), false, true);
 			}
 		});
 
