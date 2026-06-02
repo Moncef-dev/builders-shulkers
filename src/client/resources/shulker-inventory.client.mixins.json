@@ -16,7 +16,11 @@
 		"ItemEntityRenderStateMixin",
 		"ItemEntityRendererMixin",
 		"HeldItemAnimationMixin",
-		"FirstPersonHeldItemMixin"
+		"FirstPersonHeldItemMixin",
+		"MouseHandlerScrollMixin",
+		"InventorySelectedSlotMixin",
+		"MultiPlayerGameModeMixin",
+		"MultiPlayerGameModeInteractMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

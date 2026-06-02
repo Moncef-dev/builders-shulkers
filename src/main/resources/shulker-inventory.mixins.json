@@ -4,7 +4,9 @@
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
 		"ExampleMixin",
-		"ServerContainerCloseMixin"
+		"ServerContainerCloseMixin",
+		"ServerPlayerGameModeMixin",
+		"PlayerInteractOnMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

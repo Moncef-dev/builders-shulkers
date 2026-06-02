@@ -67,6 +67,9 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 		// Advance lid animations once per client tick.
 		ClientTickEvents.END_CLIENT_TICK.register(client -> ClientShulkerSession.tick());
 
+		// Pocket-Build prototype: Ctrl + right-click a held shulker to enter/exit the block-placement mode.
+		PocketBuildClient.register();
+
 		// Run the deferred server-mod check once its delay elapses (armed at JOIN above).
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (ticksUntilServerModCheck < 0) return;

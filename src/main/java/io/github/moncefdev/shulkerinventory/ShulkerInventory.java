@@ -4,6 +4,8 @@ import io.github.moncefdev.shulkerinventory.menu.InventoryShulkerBoxMenu;
 import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
+import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
+import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -27,6 +29,8 @@ public class ShulkerInventory implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		PayloadTypeRegistry.serverboundPlay().register(OpenShulkerPayload.TYPE, OpenShulkerPayload.STREAM_CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(PocketBuildModePayload.TYPE, PocketBuildModePayload.STREAM_CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(PocketBuildSelectPayload.TYPE, PocketBuildSelectPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(OpenPlayerInventoryPayload.TYPE, OpenPlayerInventoryPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RemoteShulkerAnimationPayload.TYPE, RemoteShulkerAnimationPayload.STREAM_CODEC);
 
@@ -85,6 +89,31 @@ public class ShulkerInventory implements ModInitializer {
 			}
 		});
 
+		// Pocket-Build mode: the player entered or left the mode holding the shulker at hotbarSlot. Track the
+		// server-side mode state (the selected content slot) so a vanilla use-on packet can swap in the right content.
+		ServerPlayNetworking.registerGlobalReceiver(PocketBuildModePayload.TYPE, (payload, context) -> {
+			var player = context.player();
+			int hotbarSlot = payload.hotbarSlot();
+			Inventory inventory = player.getInventory();
+			if (hotbarSlot < 0 || hotbarSlot >= Inventory.getSelectionSize()) {
+				return;
+			}
+			ItemStack stack = inventory.getItem(hotbarSlot);
+			if (stack.isEmpty() || !stack.typeHolder().is(ItemTags.SHULKER_BOXES)) {
+				return;
+			}
+			if (payload.entering()) {
+				PocketBuildServerState.enter(player.getUUID(), payload.contentSlot());
+			} else {
+				PocketBuildServerState.exit(player.getUUID());
+			}
+		});
+
+		// Pocket-Build selection: keep the server's selected content slot in sync as the player scrolls, so a normal
+		// vanilla use-on packet swaps in the right content (handled by ServerPlayerGameModeMixin).
+		ServerPlayNetworking.registerGlobalReceiver(PocketBuildSelectPayload.TYPE, (payload, context) ->
+				PocketBuildServerState.select(context.player().getUUID(), payload.contentSlot()));
+
 		// Login cleanup. We deliberately never strip the animation_id marker DURING a session: an async strip that
 		// mutates an inventory or cursor stack mid-session emits a slot/cursor update that can collide with a
 		// concurrent click prediction on the client, briefly rendering a duplicated shulker. A leftover marker is
@@ -108,6 +137,10 @@ public class ShulkerInventory implements ModInitializer {
 						cleaned, handler.player.getName().getString());
 			}
 		});
+
+		// Drop any Pocket-Build state when a player leaves, so a stale selected slot never lingers server-side.
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+				PocketBuildServerState.exit(handler.player.getUUID()));
 
 		LOGGER.info("Shulker Inventory initialized");
 	}
