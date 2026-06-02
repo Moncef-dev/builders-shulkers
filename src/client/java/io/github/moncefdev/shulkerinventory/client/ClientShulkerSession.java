@@ -6,7 +6,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -133,15 +135,22 @@ public final class ClientShulkerSession {
 		}
 	}
 
+	// Plays the shulker open/close sound at an entity's position, with vanilla's volume and slight pitch jitter.
+	// Shared by the opener's own sound and the broadcast sound played for OTHER players' held shulkers, so the two
+	// can never drift apart.
+	public static void playShulkerSound(Level level, Entity at, boolean opening) {
+		level.playLocalSound(at,
+				opening ? SoundEvents.SHULKER_BOX_OPEN : SoundEvents.SHULKER_BOX_CLOSE,
+				SoundSource.BLOCKS, 0.5f, level.getRandom().nextFloat() * 0.1f + 0.9f);
+	}
+
 	// Plays the opener's OWN shulker open/close sound, locally at their own position. The opener always hears both
 	// sounds, whether the shulker is held or buried in the inventory; this is deliberately independent of the
 	// held-gated broadcast that carries the sound to OTHER players (who only hear it for a visibly held shulker).
 	public static void playOwnSound(boolean opening) {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.level == null || mc.player == null) return;
-		mc.level.playLocalSound(mc.player,
-				opening ? SoundEvents.SHULKER_BOX_OPEN : SoundEvents.SHULKER_BOX_CLOSE,
-				SoundSource.BLOCKS, 0.5f, mc.level.getRandom().nextFloat() * 0.1f + 0.9f);
+		playShulkerSound(mc.level, mc.player, opening);
 	}
 
 	public static boolean isAnimating(long animationId) {

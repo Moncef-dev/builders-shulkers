@@ -10,8 +10,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 
 public class ShulkerInventoryClient implements ClientModInitializer {
@@ -85,8 +83,6 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 		if (client.level == null) return;
 		Entity holder = client.level.getEntity(holderEntityId);
 		if (holder == null) return;
-		client.level.playLocalSound(holder,
-				opening ? SoundEvents.SHULKER_BOX_OPEN : SoundEvents.SHULKER_BOX_CLOSE,
-				SoundSource.BLOCKS, 0.5f, client.level.getRandom().nextFloat() * 0.1f + 0.9f);
+		ClientShulkerSession.playShulkerSound(client.level, holder, opening);
 	}
 }
