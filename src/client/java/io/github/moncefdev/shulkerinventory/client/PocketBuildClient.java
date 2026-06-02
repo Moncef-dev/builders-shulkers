@@ -34,6 +34,16 @@ public final class PocketBuildClient {
 	// The Ctrl + right-click toggle re-arms only after the right-click has been physically released, so holding it
 	// down cannot flip-flop the mode.
 	private static boolean rightClickReleased = true;
+	// The Ctrl peek contents overlay only appears after Ctrl has been held this many ticks, so a quick Ctrl +
+	// right-click toggle (which holds Ctrl briefly) never flashes the overlay before the mode opens/closes.
+	private static final int PEEK_DELAY_TICKS = 5;
+	private static int ctrlHeldTicks = 0;
+
+	// Whether the Ctrl-peek contents overlay should be shown right now: in Pocket-Build mode with Ctrl held past the
+	// debounce window. Read by PocketBuildOverlay.
+	public static boolean peekVisible() {
+		return PocketBuildMode.isActive() && ctrlHeldTicks >= PEEK_DELAY_TICKS;
+	}
 
 	public static void register() {
 		// A right-click aimed at a block fires UseBlockCallback (carries the target); one aimed at air fires
@@ -78,6 +88,15 @@ public final class PocketBuildClient {
 			if (mc.screen instanceof AbstractContainerScreen || !stillShulker
 					|| mc.player.getInventory().getSelectedSlot() != PocketBuildMode.sourceHotbarSlot()) {
 				exitMode();
+				return;
+			}
+			// Debounce the Ctrl peek: count how long Ctrl has been held continuously. A quick Ctrl + right-click
+			// toggle holds Ctrl only briefly, so it never reaches the threshold and the contents overlay never
+			// flashes before the mode closes; a deliberate peek (sustained Ctrl) does show it.
+			if (InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)) {
+				ctrlHeldTicks++;
+			} else {
+				ctrlHeldTicks = 0;
 			}
 		});
 	}
@@ -150,6 +169,9 @@ public final class PocketBuildClient {
 	}
 
 	private static void enterMode(Player player, ItemStack held) {
+		// Restart the Ctrl-peek debounce from zero, so opening the mode (a Ctrl + right-click that holds Ctrl briefly)
+		// does not immediately flash the contents overlay, just like the exit case.
+		ctrlHeldTicks = 0;
 		int slot = player.getInventory().getSelectedSlot();
 		// Begin the lid opening, resuming from the shulker's current openness (shared with the inventory open mode via
 		// ClientShulkerSession.beginHeldOpening), so a quick re-enter continues from where the closing lid is instead

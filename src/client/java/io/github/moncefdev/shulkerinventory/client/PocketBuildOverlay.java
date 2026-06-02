@@ -1,6 +1,5 @@
 package io.github.moncefdev.shulkerinventory.client;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -9,7 +8,6 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.resources.Identifier;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.glfw.GLFW;
 
 // Peek overlay: while in Pocket-Build mode AND Ctrl is held, draw the held shulker's contents as the actual vanilla
 // shulker-box container interface (same texture/slots as opening the box), cropped to the box itself (title bar + the
@@ -43,15 +41,12 @@ public final class PocketBuildOverlay {
 	private static final int HOVER_COLOR = 0x80FFFFFF;
 
 	public static void render(GuiGraphicsExtractor g, DeltaTracker delta) {
-		if (!PocketBuildMode.isActive()) {
+		// Ctrl-peek with debounce (so a quick Ctrl + right-click toggle does not flash the overlay).
+		if (!PocketBuildClient.peekVisible()) {
 			return;
 		}
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null || mc.screen != null) {
-			return;
-		}
-		// Ctrl-peek: only show while Ctrl is held.
-		if (!InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)) {
 			return;
 		}
 		ItemStack shulker = mc.player.getMainHandItem();
