@@ -20,7 +20,8 @@
 		"MouseHandlerScrollMixin",
 		"InventorySelectedSlotMixin",
 		"MultiPlayerGameModeMixin",
-		"MultiPlayerGameModeInteractMixin"
+		"MultiPlayerGameModeInteractMixin",
+		"GuiSelectedItemNameMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
