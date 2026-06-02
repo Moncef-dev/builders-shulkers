@@ -63,11 +63,16 @@ public final class ClientShulkerSession {
 		return id;
 	}
 
-	public static void startOpening(long animationId) {
+	public static void startOpening(long animationId, float initialProgress) {
 		pendingIdForScreen = animationId;
 		pendingIdTtl = PENDING_OPEN_GRACE_TICKS;
 		AnimationState anim = animations.computeIfAbsent(animationId, k -> new AnimationState());
 		anim.status = AnimationStatus.OPENING;
+		// Resume from the openness the shulker is rendered at right now: a quick reopen of a shulker whose closing
+		// lid is still draining continues from there instead of snapping shut to 0 first. A fresh open (or a
+		// different shulker that is not mid-animation) passes 0 and opens from fully closed as before.
+		anim.progress = initialProgress;
+		anim.progressOld = initialProgress;
 	}
 
 	// Starts an animation that mirrors another player's shulker (driven by a server broadcast), with NO pending
@@ -132,6 +137,13 @@ public final class ClientShulkerSession {
 
 	public static boolean isAnimating(long animationId) {
 		return animations.containsKey(animationId);
+	}
+
+	// The animation's current logical openness (0..1), or 0 if there is no live animation for this id. Used to
+	// resume a reopen from wherever the closing lid currently is.
+	public static float currentProgress(long animationId) {
+		AnimationState anim = animations.get(animationId);
+		return anim == null ? 0f : anim.progress;
 	}
 
 	public static float getInterpolatedProgress(long animationId, float partialTick) {
