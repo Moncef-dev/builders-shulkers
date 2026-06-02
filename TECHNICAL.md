@@ -1,7 +1,7 @@
-# Shulker Inventory - Technical Documentation (v1.0.8)
+# Shulker Inventory - Technical Documentation (v1.1.0)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.0.8.
+their scope, and known risks. Describes the state as shipped in v1.1.0.
 
 ## Environment
 
@@ -17,6 +17,9 @@ inventory (right-click), lets the player rearrange items with all vanilla contro
 close, supports switching between shulkers, plays the open/close sounds, and animates the lid
 opening in the GUI, on the held item, and on dropped item entities. All item movement is
 server-authoritative.
+
+It also adds Pocket-Build mode (1.1.0): hold a shulker in the hotbar and Ctrl + right-click to place or use its
+selected content straight from the box, without putting it down (the mouse wheel picks the item). See section 8.
 
 ## 1. Reuse of the vanilla ShulkerBoxMenu (no custom type)
 
@@ -160,7 +163,7 @@ Client (`shulker-inventory.client.mixins.json`):
   Carries the holder entity id (a mirrored sound plays at the holder's position) and a `playSound` flag (a close
   caused by disturbing the source shulker is sent silent, so viewers drain the animation without a phantom sound).
 
-## 7. Known limitations and risks (v1.0.8)
+## 7. Known limitations and risks (v1.1.0)
 
 - Component-equality divergence (observed, not just theoretical). While `animation_id` is present,
   the shulker is not equal by components to an otherwise identical stack without it. This is a real
@@ -199,7 +202,48 @@ Client (`shulker-inventory.client.mixins.json`):
   accepted.
 - The render side channel is render-thread-confined; correct but order-sensitive.
 
-## 8. Compatibility notes for other mod authors
+## 8. Pocket-Build mode (1.1.0)
+
+Hold a shulker in the hotbar and Ctrl + right-click to enter Pocket-Build mode; a plain right-click then places
+or uses the SELECTED CONTENT of the box, never the box itself, and the mouse wheel cycles the selection. It is
+server-authoritative, so nothing can be duplicated.
+
+- Content-swap (the Vanilla+ core). Rather than re-implementing placement conditions (can-place, interact-vs-place,
+  adventure-mode permissions, the place sound, orientation, the survival-only consume), the mod briefly swaps the
+  selected content into the player's hand and lets the WHOLE vanilla use/interact flow run on it, then restores the
+  shulker in a `try/finally` (the held shulker can never be lost mid-swap; anti-dup). Every property emerges from
+  vanilla; nothing is re-coded. Two paths are wrapped, on the client (prediction) and the server (authoritative):
+  - Block use: `MultiPlayerGameModeMixin` and `ServerPlayerGameModeMixin` (`@WrapMethod` on `useItemOn`).
+  - Entity interaction: `MultiPlayerGameModeInteractMixin` (`interact`) and the common `PlayerInteractOnMixin`
+    (`Player.interactOn`, run on both sides).
+  The server removes from the box's `container` component exactly what vanilla consumed (`content.getCount() -
+  held.getCount()`), so in survival the content decrements and in creative it does not, BOTH emergent from
+  `BlockItem.place` (which only shrinks the held stack in survival). This matches vanilla creative's infinite hotbar
+  items; it is intended, not a special case. Out of scope for now: the generic `Item.use` path (food, throwables,
+  buckets, bows) is not wrapped.
+- Mode state. Client `PocketBuildMode` holds the active flag, the source hotbar slot, the selected content slot, and
+  the animation id; server `PocketBuildServerState` holds, per player in the mode, the selected content slot (so the
+  use-on packet swaps in the right content). `isActive` (key present) is kept distinct from `selectedSlot` (which
+  returns -1 both for "not in the mode" and "in the mode with nothing selected"), so an empty selection places nothing
+  instead of the box.
+- Input. `MouseHandlerScrollMixin` reroutes the wheel to cycle the selected NON-EMPTY content slot (cancelling the
+  vanilla hotbar scroll); `InventorySelectedSlotMixin` blocks the number-key slot change, scoped to the local player;
+  the off-hand swap key (F) is drained each client tick. The selection is synced to the server with
+  `PocketBuildSelectPayload`.
+- Animation. Entering and leaving the mode reuse the inventory-open machinery (sections 3-4): the client begins the
+  lid animation via the shared `ClientShulkerSession.beginHeldOpening`, which resumes from the shulker's current
+  openness on a quick re-enter; the server stamps the `animation_id` marker and broadcasts open/close, so the held
+  shulker's lid animates in every render context and on other players' view of the holder. `beginHeldOpening` is
+  shared with the inventory open path so the resume behaviour cannot diverge between the two modes.
+- Peek overlay and item name (client HUD). While Ctrl is held (after a short debounce, so the quick Ctrl + right-click
+  toggle never flashes it), `PocketBuildOverlay` draws the 27 contents as the actual vanilla shulker-box container
+  interface above the hotbar (through the 26.1.2 `GuiGraphicsExtractor`), with the selected slot under the vanilla
+  container hover highlight. `GuiSelectedItemNameMixin` redirects the held-stack read in `Gui.tick` to the selected
+  content, so the vanilla hotbar item-name popup names the content (pop, fade, rarity colour) on each scroll.
+- Payloads: `PocketBuildModePayload` (C2S: enter/exit, hotbar slot, animation id, selected content slot) and
+  `PocketBuildSelectPayload` (C2S: selected content slot).
+
+## 9. Compatibility notes for other mod authors
 
 This mod is built to be a good vanilla citizen, but it relies on a few vanilla contracts. If
 another mod breaks one of these, interop may suffer. Below: what could clash, and how to stay

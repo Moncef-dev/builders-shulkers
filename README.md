@@ -1,21 +1,30 @@
 # Shulker Inventory
 
-A Fabric mod for Minecraft that lets you open and rearrange the contents of a shulker box
-straight from your inventory, without ever placing it down.
+A Fabric mod for Minecraft that lets you use a shulker box's contents without ever placing it
+down: open and rearrange it straight from your inventory like a chest, and place or use its
+items from your hotbar while you build.
 
 ## What you can do
 
+### Open a shulker from your inventory
 - Right-click a shulker box in your inventory to open it, just like opening a chest.
-- Move items in and out with all the usual controls: left and right click, shift-click,
-  drag, hotbar number keys, and drop.
+- Move items in and out with all the usual controls: left and right click, shift-click, drag, hotbar number keys, and drop.
 - Close it with Escape, or by right-clicking the same shulker again; the contents are saved safely back into it.
 - While a shulker is open, right-click another one to switch straight to it.
-- Hear the familiar shulker open and close sounds.
-- Watch the shulker lid smoothly animate open and closed; the animation follows the shulker through any state it can be in.
+- Hear the familiar open and close sounds, and watch the lid smoothly animate open and closed (the animation follows the shulker through any state it can be in).
+
+### Build from a shulker in your hotbar (Pocket-Build)
+- Hold a shulker box in your hotbar and Ctrl + right-click to enter Pocket-Build mode, instead of placing the box.
+- Scroll the mouse wheel to pick an item inside the box; its name shows above your hotbar.
+- Right-click to place or use that item straight from the box - place blocks, put items in item frames, and more - while the box stays in your hand and its lid animates open.
+- Hold Ctrl to peek at the box's contents in an overlay above your hotbar.
 
 Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
+
+### 1.1.0
+New Pocket-Build mode: hold a shulker box in your hotbar and Ctrl + right-click to build straight from it without placing it down. Scroll to pick an item, right-click to place or use it (blocks, item frames, and more), and hold Ctrl to peek at the box's contents. The held box's lid animates open while you build.
 
 ### 1.0.8
 Quickly reopening a shulker box now resumes its lid animation from where it was, instead of briefly snapping the lid shut before opening again.
