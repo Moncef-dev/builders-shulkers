@@ -3,7 +3,6 @@
 	"package": "io.github.moncefdev.shulkerinventory.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
-		"ExampleMixin",
 		"ServerContainerCloseMixin",
 		"ServerPlayerGameModeMixin",
 		"PlayerInteractOnMixin"
