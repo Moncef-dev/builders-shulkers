@@ -77,6 +77,11 @@ public final class PocketBuildMode {
 		selectedContentSlot = nonEmpty[pos];
 	}
 
+	// A snapshot of the held shulker's 27 content stacks (for the peek overlay rendering).
+	public static NonNullList<ItemStack> snapshotContents(ItemStack shulker) {
+		return readContents(shulker);
+	}
+
 	// The content stack currently selected, or EMPTY if none.
 	public static ItemStack selectedStack(ItemStack shulker) {
 		if (selectedContentSlot < 0 || selectedContentSlot >= CONTAINER_SIZE) {

@@ -4,6 +4,9 @@ import com.mojang.blaze3d.platform.InputConstants;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.resources.Identifier;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
@@ -40,6 +43,11 @@ public final class PocketBuildClient {
 		// Right-clicking an ENTITY (e.g. an item frame) goes through neither callback above. Route it here too so the
 		// mode toggle is consistent: Ctrl + right-click always enters/exits Pocket-Build, never the entity action.
 		UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> onUseEntity(player, world, hand));
+
+		// Peek overlay: draw the shulker contents grid right after the vanilla hotbar (shown while Ctrl is held).
+		HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR,
+				Identifier.fromNamespaceAndPath("shulker-inventory", "pocket_build_overlay"),
+				PocketBuildOverlay::render);
 
 		// Block the off-hand swap key (F) while the mode is active, before vanilla's keybind handling reads it.
 		ClientTickEvents.START_CLIENT_TICK.register(mc -> {
