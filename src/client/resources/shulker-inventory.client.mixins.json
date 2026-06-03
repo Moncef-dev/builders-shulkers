@@ -10,6 +10,7 @@
 		"ShulkerBoxLidFadeGateMixin",
 		"ShulkerBoxLidFadeMixin",
 		"ItemStackRenderStateAccessor",
+		"LayerRenderStateAccessor",
 		"PocketBuildContentLayerMixin",
 		"ContainerScreenCloseMixin",
 		"ShulkerAnimatedMixin",
