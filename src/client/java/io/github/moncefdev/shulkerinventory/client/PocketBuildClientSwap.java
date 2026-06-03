@@ -1,5 +1,6 @@
 package io.github.moncefdev.shulkerinventory.client;
 
+import io.github.moncefdev.shulkerinventory.PocketBuildRules;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -16,6 +17,10 @@ public final class PocketBuildClientSwap {
 
 	public static InteractionResult runPredicted(Player player, ItemStack shulker, Supplier<InteractionResult> body) {
 		ItemStack content = PocketBuildMode.selectedStack(shulker);
+		// Build-only: a non-usable selection predicts nothing (mirrors the server gate so prediction matches authority).
+		if (!content.isEmpty() && !PocketBuildRules.isUsable(content)) {
+			return InteractionResult.FAIL;
+		}
 		int handSlot = player.getInventory().getSelectedSlot();
 		ItemStack held = content.copy();
 		player.getInventory().setItem(handSlot, held);

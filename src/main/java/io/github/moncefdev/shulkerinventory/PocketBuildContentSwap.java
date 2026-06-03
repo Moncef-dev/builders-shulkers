@@ -23,6 +23,11 @@ public final class PocketBuildContentSwap {
 		// (places nothing / just the bare interaction), never falling through to using the shulker itself.
 		int slot = PocketBuildServerState.selectedSlot(player.getUUID());
 		ItemStack content = slot >= 0 ? items.get(slot) : ItemStack.EMPTY;
+		// Build-only: a non-usable selection (anything that isn't a placeable block) does nothing. The shulker is never
+		// swapped out of hand here, so it can be neither placed nor lost. The future gamerule widens isUsable.
+		if (!content.isEmpty() && !PocketBuildRules.isUsable(content)) {
+			return InteractionResult.FAIL;
+		}
 		int handSlot = player.getInventory().getSelectedSlot();
 		ItemStack held = content.copy();
 		player.getInventory().setItem(handSlot, held);
@@ -31,12 +36,15 @@ public final class PocketBuildContentSwap {
 			// forwards it as its stack argument; the entity path reads the hand itself).
 			return body.apply(held);
 		} finally {
+			// Write back the ACTUAL post-use stack from the hand (not a count delta): it captures everything the vanilla
+			// flow did to the content - plain count for a block, but also item REPLACEMENT/emptying (a powder snow bucket
+			// becomes an empty bucket) and, once the gamerule allows tools, durability/component changes. Read it before
+			// restoring the shulker. Items are conserved: the slot goes content -> afterUse, the difference is what
+			// vanilla placed/consumed into the world.
+			ItemStack afterUse = player.getInventory().getItem(handSlot).copy();
 			player.getInventory().setItem(handSlot, shulker);
-			int consumed = content.getCount() - held.getCount();
-			if (consumed > 0) {
-				ItemStack remaining = content.copy();
-				remaining.shrink(consumed);
-				items.set(slot, remaining);
+			if (slot >= 0) {
+				items.set(slot, afterUse);
 				ShulkerContents.write(shulker, items);
 			}
 		}

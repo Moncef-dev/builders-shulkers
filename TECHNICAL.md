@@ -201,16 +201,10 @@ Client (`shulker-inventory.client.mixins.json`):
   Login is the one cheap, safe cleanup point, and the brief on-stack residue between a close and the next login is
   accepted.
 - The render side channel is render-thread-confined; correct but order-sensitive.
-- Pocket-Build performs an item's full use behavior, not only placement. Because the selected content is run through
-  vanilla's complete use-on flow (the Vanilla+ core, section 8), an item that has a use action performs it rather than
-  only placing. On a block: tools act on the target (shovel makes a path, hoe tills, axe strips or scrapes), and flint
-  and steel, spawn eggs, bone meal and honeycomb likewise run their use-on-block action. On an entity: inserting an
-  item into a frame or onto an armor stand is the intended use, but shears, dyes, name tags, leads, saddles and buckets
-  would also act on a mob. This is inherent to the design: vanilla draws no line between "place a block" and "use this
-  item" at `Item.useOn` (both are the item's `useOn` override, told apart only by the item's class), and there is no
-  vanilla "placeable" item signal. The one clean signal, `BlockItem`, would restrict Pocket-Build to plain blocks and
-  forbid placing item frames, paintings, armor stands or boats from the box, which is more limiting than the current
-  behavior, so it is intentionally left open.
+- (Resolved in 1.1.1.) An earlier build ran every selected item through vanilla's full use-on flow, so a tool, a
+  bucket or a spawn egg used from the box performed its action rather than only placing. Pocket-Build is now restricted
+  to block items (section 8), which removes that behavior; the trade-off that block-only rule makes (it excludes the
+  placeable non-blocks: buckets, item frames, paintings, boats, spawn eggs, ...) is documented there.
 
 ## 8. Pocket-Build mode (1.1.0)
 
@@ -226,11 +220,11 @@ server-authoritative, so nothing can be duplicated.
   - Block use: `MultiPlayerGameModeMixin` and `ServerPlayerGameModeMixin` (`@WrapMethod` on `useItemOn`).
   - Entity interaction: `MultiPlayerGameModeInteractMixin` (`interact`) and the common `PlayerInteractOnMixin`
     (`Player.interactOn`, run on both sides).
-  The server removes from the box's `container` component exactly what vanilla consumed (`content.getCount() -
-  held.getCount()`), so in survival the content decrements and in creative it does not, BOTH emergent from
-  `BlockItem.place` (which only shrinks the held stack in survival). This matches vanilla creative's infinite hotbar
-  items; it is intended, not a special case. Out of scope for now: the generic `Item.use` path (food, throwables,
-  buckets, bows) is not wrapped.
+  The server writes the FULL post-use stack back into the box's `container` component (not just the count delta), so
+  everything the vanilla flow did to the item is kept: the count decrements in survival and not in creative (emergent
+  from `BlockItem.place`, which only shrinks the held stack in survival), and an item the use REPLACES is carried back
+  too (placing powder snow empties the bucket to an empty bucket, which an earlier count-only write-back lost). Once a
+  gamerule allows non-block use (below), tool durability and consumption are preserved the same way, with no extra code.
 - Mode state. Client `PocketBuildMode` holds the active flag, the source hotbar slot, the selected content slot, and
   the animation id; server `PocketBuildServerState` holds, per player in the mode, the selected content slot (so the
   use-on packet swaps in the right content). `isActive` (key present) is kept distinct from `selectedSlot` (which
@@ -252,6 +246,30 @@ server-authoritative, so nothing can be duplicated.
   content, so the vanilla hotbar item-name popup names the content (pop, fade, rarity colour) on each scroll.
 - Payloads: `PocketBuildModePayload` (C2S: enter/exit, hotbar slot, animation id, selected content slot) and
   `PocketBuildSelectPayload` (C2S: selected content slot).
+
+### Placement scope: block items only (1.1.1)
+
+Pocket-Build only acts on BLOCK items: a non-block selection (a tool, a bucket, a boat, a spawn egg, ...) does nothing
+on right-click. `PocketBuildRules.isUsable` is the single gate, checked by both the server content-swap and the client
+prediction.
+
+- Why: Pocket-Build is a pocket of placeable BLOCKS, not a tool/interaction handler. Without the gate, running every
+  item through vanilla's use-on flow meant a tool used from the box performed its right-click action (a shovel made a
+  path, a hoe tilled, flint and steel lit a fire) and a bucket or spawn egg deployed - the incoherence being that the
+  box could trigger half a tool's behavior (its right-click) while it could never do the tool's primary job (mining).
+  Restricting to blocks makes the feature coherent: the box places blocks, full stop.
+- Why `BlockItem` is the boundary and not a hand-rolled list: it is Mojang's own type for "this item becomes a block
+  when placed", so it stays correct for modded and future blocks automatically, and placement itself still runs through
+  the unchanged vanilla content-swap. It is a single, stable type check, not a re-coded approximation of "placeable".
+- Concession - what a block-only rule excludes. `instanceof BlockItem` is exact for "is a block" but not for "places
+  something": the placeable items it leaves out are water/lava buckets, item frames, paintings, armor stands, boats,
+  minecarts, end crystals, spawn eggs, leads, flint and steel, fire charge, ender eye, bone meal. These are all
+  entities, fluids or tool-style uses - consistent with "build, not interact" - so they are intentionally out of scope.
+  (`powder_snow_bucket` is a `BlockItem` and is allowed, since it places a block.)
+- Perspective - a gamerule (off by default) is planned to widen the rule to "use any item exactly as if it were in the
+  hotbar". Instant uses already emerge from the content-swap (placing, buckets, fire, throwing); continuous uses
+  (eating, drinking, drawing a bow) need the content to stay in hand for the use's whole duration, which the current
+  instantaneous swap does not do - that is the open design question for the gamerule.
 
 ### Content rendering: the selected block inside the box (1.1.1)
 
