@@ -28,6 +28,14 @@ public final class ClientShulkerSession {
 		float progress;
 		float progressOld;
 		AnimationStatus status = AnimationStatus.OPENING;
+		// The Pocket-Build selected content to draw inside this box, or EMPTY for a normal (inventory) animation. Held
+		// on the animation (not on PocketBuildMode) so it survives the whole close: the mode goes inactive the instant
+		// you leave, but the closing lid still plays, and the content must stay visible until that animation finishes.
+		ItemStack pocketBuildContent = ItemStack.EMPTY;
+		// Whether this animation belongs to a Pocket-Build box (vs a normal inventory open). Drives the lid dissolve,
+		// which must happen for the whole Pocket-Build open even when the selected slot is empty (no content to draw):
+		// gating the dissolve on the content would leave the lid opaque on an empty selection.
+		boolean pocketBuild = false;
 	}
 
 	public record AnimationMarker(long animationId) {}
@@ -51,6 +59,19 @@ public final class ClientShulkerSession {
 
 	public static long getCurrentItemEntityAnimationId() {
 		return currentItemEntityAnimationId;
+	}
+
+	// Render-thread flag: true only while the live Pocket-Build item shulker's special model is being submitted. The
+	// lid-fade mixin sits on ShulkerBoxRenderer, which also renders world block entities, so it must act ONLY when this
+	// flag is set (i.e. the item special-render path for our Pocket-Build shulker), never on a placed shulker block.
+	private static boolean pocketBuildLidRendering = false;
+
+	public static void setPocketBuildLidRendering(boolean value) {
+		pocketBuildLidRendering = value;
+	}
+
+	public static boolean isPocketBuildLidRendering() {
+		return pocketBuildLidRendering;
 	}
 
 	// A random non-zero long, so ids are globally unique across clients. A per-client sequential counter would
@@ -191,5 +212,44 @@ public final class ClientShulkerSession {
 
 	public static long getCurrentAtlasRenderingId() {
 		return currentAtlasRenderingId;
+	}
+
+	// The animation id currently being rendered, resolved from the render side channel (the GUI atlas draw, or a
+	// held/dropped item draw), or 0 if none. Lets a render mixin know WHICH shulker animation is on screen right now
+	// (e.g. to draw the Pocket-Build selected content only inside the local player's own animated shulker).
+	public static long currentRenderingId() {
+		return currentAtlasRenderingId != 0L ? currentAtlasRenderingId : currentItemEntityAnimationId;
+	}
+
+	// Sets the Pocket-Build content drawn inside the given animation's box (a copy; EMPTY clears it). No-op if the
+	// animation no longer exists. Refreshed while the mode is active so it tracks the scroll selection, then left
+	// frozen on the animation through the close.
+	public static void setPocketBuildContent(long animationId, ItemStack content) {
+		AnimationState anim = animations.get(animationId);
+		if (anim != null) {
+			anim.pocketBuildContent = (content == null || content.isEmpty()) ? ItemStack.EMPTY : content.copy();
+		}
+	}
+
+	// The Pocket-Build content to draw inside the given animation's box, or EMPTY (no content, or not a Pocket-Build
+	// animation, or the animation has ended).
+	public static ItemStack getPocketBuildContent(long animationId) {
+		AnimationState anim = animations.get(animationId);
+		return anim == null ? ItemStack.EMPTY : anim.pocketBuildContent;
+	}
+
+	// Tags the animation as a Pocket-Build box (set once when the mode opens it). Stays set through the close.
+	public static void markPocketBuild(long animationId) {
+		AnimationState anim = animations.get(animationId);
+		if (anim != null) {
+			anim.pocketBuild = true;
+		}
+	}
+
+	// Whether the given animation is a Pocket-Build box. Drives the lid dissolve, which must run for the whole
+	// Pocket-Build open regardless of whether the selected slot has content.
+	public static boolean isPocketBuild(long animationId) {
+		AnimationState anim = animations.get(animationId);
+		return anim != null && anim.pocketBuild;
 	}
 }

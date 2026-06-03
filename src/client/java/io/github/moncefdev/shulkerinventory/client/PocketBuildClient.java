@@ -90,6 +90,9 @@ public final class PocketBuildClient {
 				exitMode();
 				return;
 			}
+			// Keep the content drawn inside the box in sync with the scroll selection; it stays frozen on the
+			// animation through the close (where the mode is already inactive).
+			ClientShulkerSession.setPocketBuildContent(PocketBuildMode.animationId(), PocketBuildMode.selectedStack(held));
 			// Debounce the Ctrl peek: count how long Ctrl has been held continuously. A quick Ctrl + right-click
 			// toggle holds Ctrl only briefly, so it never reaches the threshold and the contents overlay never
 			// flashes before the mode closes; a deliberate peek (sustained Ctrl) does show it.
@@ -178,7 +181,11 @@ public final class PocketBuildClient {
 		// of snapping shut. No screen here, so armScreen=false. The server tags the held stack with this id (synced
 		// back) so the render resolves the marker to this animation across every context.
 		long id = ClientShulkerSession.beginHeldOpening(held, false);
+		// Tag the animation as Pocket-Build so the lid dissolves for the whole open, even when the selected slot is empty.
+		ClientShulkerSession.markPocketBuild(id);
 		PocketBuildMode.enter(slot, held, id);
+		// Hand the selected content to the animation so the render draws it inside the box from the start of the open.
+		ClientShulkerSession.setPocketBuildContent(id, PocketBuildMode.selectedStack(held));
 		ClientPlayNetworking.send(new PocketBuildModePayload(true, slot, id, PocketBuildMode.selectedContentSlot()));
 		ClientShulkerSession.playOwnSound(true);
 	}

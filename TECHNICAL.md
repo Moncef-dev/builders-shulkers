@@ -201,6 +201,16 @@ Client (`shulker-inventory.client.mixins.json`):
   Login is the one cheap, safe cleanup point, and the brief on-stack residue between a close and the next login is
   accepted.
 - The render side channel is render-thread-confined; correct but order-sensitive.
+- Pocket-Build performs an item's full use behavior, not only placement. Because the selected content is run through
+  vanilla's complete use-on flow (the Vanilla+ core, section 8), an item that has a use action performs it rather than
+  only placing. On a block: tools act on the target (shovel makes a path, hoe tills, axe strips or scrapes), and flint
+  and steel, spawn eggs, bone meal and honeycomb likewise run their use-on-block action. On an entity: inserting an
+  item into a frame or onto an armor stand is the intended use, but shears, dyes, name tags, leads, saddles and buckets
+  would also act on a mob. This is inherent to the design: vanilla draws no line between "place a block" and "use this
+  item" at `Item.useOn` (both are the item's `useOn` override, told apart only by the item's class), and there is no
+  vanilla "placeable" item signal. The one clean signal, `BlockItem`, would restrict Pocket-Build to plain blocks and
+  forbid placing item frames, paintings, armor stands or boats from the box, which is more limiting than the current
+  behavior, so it is intentionally left open.
 
 ## 8. Pocket-Build mode (1.1.0)
 
@@ -242,6 +252,62 @@ server-authoritative, so nothing can be duplicated.
   content, so the vanilla hotbar item-name popup names the content (pop, fade, rarity colour) on each scroll.
 - Payloads: `PocketBuildModePayload` (C2S: enter/exit, hotbar slot, animation id, selected content slot) and
   `PocketBuildSelectPayload` (C2S: selected content slot).
+
+### Content rendering: the selected block inside the box (1.1.1)
+
+The held shulker draws its selected BLOCK content as a small 3D block inside the box, in every render context
+(inventory slot, first person, third person), so the player sees what they are about to place.
+
+- How: the content is composed into the shulker's OWN item render state, the same way the vanilla bundle composes
+  its selected item. `PocketBuildContentLayerMixin` (`@Inject` at the tail of `ItemModelResolver.appendItemLayers`)
+  appends the content's layers to that render state and shrinks them to 0.6 about the box centre. Because it is one
+  render state, the content gets its native per-context display transform ONCE and reads correctly as a 3D block in
+  every context, occluded by the box geometry through the depth test - no second display transform, no ordering tricks.
+- Why not a separate submission with a hand-built transform: an earlier attempt drew the content as a separate pass
+  at a fixed orientation. A single fixed rotation cannot match every block's per-context display transform (a
+  dispenser, stairs and a slab each orient differently), so it was always wrong for some block in some context.
+  Composing as a layer makes the correct orientation EMERGE from vanilla, exactly like the bundle, instead of being
+  re-coded.
+- The scale pivots about the FIXED box centre (0.5, 0.5, 0.5), not the content's own centre, so each shape keeps its
+  natural place in the box: a full block centres, a bottom slab sits in the lower half.
+- Concession - block content only. Non-block (2D) items (tools, food, ...) are not drawn inside the box yet. Their
+  per-context transform is hand-calibrated and overflows the shrunk box, and forcing the GUI transform instead breaks
+  on three axes inside a world render: position (the GUI transform's translation is applied after our scale and cannot
+  be countered from the layer), orientation (the GUI transform is screen-space, so the item lies flat in third
+  person), and lighting (`gui_light: front` items are lit for the GUI's flat front light and look dark under the
+  world's directional light). Drawing a non-block like its inventory slot needs a separate camera-facing (billboard)
+  render; it is planned but not yet shipped.
+
+### Lid dissolve (1.1.1)
+
+As a Pocket-Build shulker opens, its lid DISSOLVES away instead of only lifting, so it stops hiding the content
+composed inside the box.
+
+- Why a dissolve and not a translucent fade: a true alpha fade cannot be ordered correctly here. The content is drawn
+  in the item render pass and the lid in the model-translucent pass; the two are composited in an order that is fixed
+  by the engine and differs by context (the content draws in front of a faded lid in some contexts, the faded lid
+  masks the content in others). Translucent blending is order-dependent and that order is not controllable across the
+  item/model pass boundary, so a fade was abandoned.
+- The dissolve reuses the vanilla `entityCutoutDissolve` render type (the Ender Dragon death effect):
+  `ShulkerBoxLidFadeMixin` (`@WrapOperation` on the lid model submit) draws the base opaque and the lid with this
+  render type, tinted `ARGB.white(1 - openness)`. The shader discards a texel when `(1 - openness)` falls below that
+  texel's threshold in a mask texture. Cutout WRITES depth and never blends, so it is ORDER-INDEPENDENT: the opaque
+  content shows through the holes in every context, and nothing behind the shulker (water, clouds) is masked through
+  them - the exact two failures a real fade could not avoid.
+- The mask (`textures/misc/lid_dissolve_mask.png`, RGBA, alpha = an even spread of thresholds) is 512x512 to match
+  the shulker atlas, with `blur: false` (NEAREST), so one mask texel maps to one shulker texture texel and the
+  dissolve aligns exactly with the box's own 16-pixels-per-face art.
+  - Concession - texel granularity. The dissolve grain is the shulker texture's resolution, not the screen's, because
+    the mask is sampled at the model's UVs. A custom screen-space dither shader would give per-screen-pixel grain at
+    any zoom, but that is a custom render pipeline: a shader pack (Iris) replaces the pipeline and would not run it,
+    and it re-implements rendering rather than reusing a vanilla render type, so it trades away both compatibility and
+    the Vanilla+ guarantee. Reusing the vanilla dissolve was preferred.
+  - The mask lives in the mod's namespace and the discard is driven by the mask alpha (not the shulker texture's
+    pixels), so a resource pack that retextures the shulker still dissolves identically.
+- The dissolve runs for the whole Pocket-Build open, including an empty selection (so the lid behaves the same whether
+  or not a block is selected): it is gated on `ClientShulkerSession.isPocketBuild` (a per-animation flag set when the
+  mode opens the box), NOT on the content being present. It is scoped to the local player's live held shulker through
+  the render side channel, so placed shulker blocks and other shulkers are never touched.
 
 ## 9. Compatibility notes for other mod authors
 
