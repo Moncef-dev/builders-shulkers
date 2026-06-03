@@ -132,7 +132,14 @@ public abstract class PocketBuildContentLayerMixin {
 			boolean held = displayContext.firstPerson()
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
-			if (held) {
+			boolean special = false;
+			for (int j = before; j < after; j++) {
+				if (((LayerRenderStateAccessor) layers[j]).shulkerInventory$getSpecialRenderer() != null) {
+					special = true;
+					break;
+				}
+			}
+			if (held || (displayContext == ItemDisplayContext.GUI && special)) {
 				float[] boxF = shulkerInventory$finalBbox(layers, 0, before, displayContext.leftHand());
 				float[] conF = shulkerInventory$finalBbox(layers, before, after, displayContext.leftHand());
 				if (boxF != null && conF != null) {

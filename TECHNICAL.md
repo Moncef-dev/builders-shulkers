@@ -296,13 +296,15 @@ their full transform) and the content is centred on THAT - which holds in every 
 the same shared (pre-outer-pose) space, so the shared outer pose preserves the alignment.
 
 - 3D block content. Kept on its native per-context display transform, so the orientation EMERGES from vanilla like the
-  bundle (a dispenser, stairs and a slab each orient correctly), shrunk 0.6, and in held views re-centred on the box's
-  real centre in ALL axes. The offset is added to the block's display-transform translation, which shifts the content
-  in the shared space and lands it exactly on the box centre whatever the held pose is. For a cube-filling block the
-  offset is ~0, so normal blocks are UNTOUCHED. This corrects two otherwise-misplaced cases: (a) flat blocks (carpets,
-  pressure plates) whose vanilla first-person hold lifts them out the top of the box, and (b) special-renderer or
-  off-centre models (mob heads, conduit, copper golem statues, nested shulkers, beds, shelves, big dripleaf, end rod)
-  whose geometry sits away from the cube centre.
+  bundle (a dispenser, stairs and a slab each orient correctly), shrunk 0.6, and re-centred on the box's real centre in
+  ALL axes. The offset is added to the block's display-transform translation, which shifts the content in the shared
+  space and lands it exactly on the box centre whatever the pose is. For a cube-filling block the offset is ~0, so
+  normal blocks are UNTOUCHED. Re-centring runs in held views for EVERY block, and in the GUI slot ONLY for
+  special-renderer content (detected from the layer's special block-entity renderer); a plain block model is left at its
+  vanilla slot position, so slabs and carpets still sit low as in the inventory. This corrects: (a) flat blocks (carpets,
+  pressure plates) lifted out the top by their vanilla first-person hold, and (b) special-renderer or off-centre models
+  (mob heads, conduit, copper golem statues, nested shulkers, beds, shelves, big dripleaf, end rod) whose geometry sits
+  away from the cube centre - off in held, and for the special renderers in the slot too.
 - Flat (2D) content (tools, the shield, flat blocks like saplings). Drawn with its GUI model, its own display transform
   dropped to `NO_TRANSFORM` (a flat sprite's GUI transform has no rotation, so dropping it keeps the orientation but
   removes the positioning translation that would otherwise anchor it to the hand), then centred on the box's real
@@ -317,12 +319,12 @@ the same shared (pre-outer-pose) space, so the shared outer pose preserves the a
     dim-but-correctly-occluded layer is the accepted trade-off; held/world lighting is already correct (the world pass
     lights it directly).
 
-Known limitation - special-renderer blocks. Mob heads, conduit, copper golem statues, nested shulkers and beds are now
-correctly POSITIONED (centred), but they are drawn by their own block-entity renderers in entity-model space, so their
-ORIENTATION (some appear flipped) and COMPLETENESS (a bed is two separate HEAD/FOOT pieces; a tall model's lower half is
-occluded by the box wall) still reflect those renderers, and the GUI slot is not re-centred for them. Matching each one
-would be per-renderer special-casing, a fragile divergence for a handful of exotic items, so it is left as a known
-limitation.
+Known limitation - special-renderer blocks. Mob heads, conduit, copper golem statues, nested shulkers, beds and the
+decorated pot are now correctly POSITIONED (centred, in held AND in the slot), but they are drawn by their own
+block-entity renderers in entity-model space, so their ORIENTATION (some appear flipped) and COMPLETENESS (a bed is two
+separate HEAD/FOOT pieces; a tall model's lower half is occluded by the box wall) still reflect those renderers.
+Matching each one would be per-renderer special-casing, a fragile divergence for a handful of exotic items, so it is
+left as a known limitation.
 
 ### Lid dissolve (1.1.1)
 

@@ -2,6 +2,7 @@ package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import java.util.function.Supplier;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.special.SpecialModelRenderer;
 import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import org.joml.Vector3fc;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,4 +22,10 @@ public interface LayerRenderStateAccessor {
 
 	@Accessor("localTransform")
 	org.joml.Matrix4f shulkerInventory$getLocalTransform();
+
+	// Whether this layer draws through a special block-entity renderer (skull, conduit, copper golem statue, shulker,
+	// bed...). Such content is rendered in entity-model native space and lands off the box centre in the GUI slot too,
+	// so it is re-centred there as well (a plain block model is not, keeping slabs/carpets at their vanilla slot spot).
+	@Accessor("specialRenderer")
+	SpecialModelRenderer<?> shulkerInventory$getSpecialRenderer();
 }
