@@ -37,7 +37,7 @@ public abstract class PocketBuildContentLayerMixin {
 			return;
 		}
 		ItemStack content = ClientShulkerSession.getPocketBuildContent(id);
-		// Blocks only here; non-block (2D) items are drawn by PocketBuildItemRenderer.
+		// Blocks only here; non-block (2D) items are not composed yet (deferred; see TECHNICAL.md).
 		if (content.isEmpty() || !(content.getItem() instanceof BlockItem)) {
 			return;
 		}
