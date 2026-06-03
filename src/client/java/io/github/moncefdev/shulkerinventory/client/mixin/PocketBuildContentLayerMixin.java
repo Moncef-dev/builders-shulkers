@@ -121,6 +121,32 @@ public abstract class PocketBuildContentLayerMixin {
 			for (int i = before; i < after; i++) {
 				layers[i].setLocalTransform(localTransform);
 			}
+			// In held views, centre the block on the box in ALL axes. A block that fills the cube (full blocks, stairs,
+			// walls) is already centred, so its offset is ~0 and it is untouched; a block whose geometry is NOT centred
+			// in the cube is pulled to the box centre. That covers two cases: a flat block lifted out the top by its
+			// vanilla first-person hold (carpet, pressure plate), and a special-renderer or off-centre model (mob heads,
+			// conduit, copper golem statues, nested shulkers, beds, shelves) whose geometry sits away from the cube
+			// centre. The offset is added to the block's display transform translation, which shifts the content in the
+			// box's shared (pre-outer-pose) space, so it lands on the box centre exactly whatever the held pose is.
+			// Orientation kept.
+			boolean held = displayContext.firstPerson()
+					|| displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND
+					|| displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
+			if (held) {
+				float[] boxF = shulkerInventory$finalBbox(layers, 0, before, displayContext.leftHand());
+				float[] conF = shulkerInventory$finalBbox(layers, before, after, displayContext.leftHand());
+				if (boxF != null && conF != null) {
+					float offX = (boxF[0] + boxF[3] - conF[0] - conF[3]) * 0.5f;
+					float offY = (boxF[1] + boxF[4] - conF[1] - conF[4]) * 0.5f;
+					float offZ = (boxF[2] + boxF[5] - conF[2] - conF[5]) * 0.5f;
+					for (int i = before; i < after; i++) {
+						ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
+						Vector3fc t = it.translation();
+						layers[i].setItemTransform(new ItemTransform(it.rotation(),
+								new Vector3f(t.x() + offX, t.y() + offY, t.z() + offZ), it.scale()));
+					}
+				}
+			}
 		}
 	}
 

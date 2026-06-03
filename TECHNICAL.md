@@ -273,30 +273,56 @@ prediction.
   (eating, drinking, drawing a bow) need the content to stay in hand for the use's whole duration, which the current
   instantaneous swap does not do - that is the open design question for the gamerule.
 
-### Content rendering: the selected block inside the box (1.1.1)
+### Content rendering: the selected content inside the box (1.1.1)
 
-The held shulker draws its selected BLOCK content as a small 3D block inside the box, in every render context
-(inventory slot, first person, third person), so the player sees what they are about to place.
+The held shulker draws its selected content inside the box, in every render context (inventory slot, first person,
+third person), so the player sees what they are about to place. The content is composed into the shulker's OWN item
+render state, the vanilla bundle technique: `PocketBuildContentLayerMixin` (`@Inject` at the tail of
+`ItemModelResolver.appendItemLayers`) appends the content's layers to that render state and shrinks them inside the box.
+One render state means the content shares the box's depth, so it is occluded by the box geometry through the depth test
+(it reads as sitting INSIDE the box), with no second pass and no ordering tricks.
 
-- How: the content is composed into the shulker's OWN item render state, the same way the vanilla bundle composes
-  its selected item. `PocketBuildContentLayerMixin` (`@Inject` at the tail of `ItemModelResolver.appendItemLayers`)
-  appends the content's layers to that render state and shrinks them to 0.6 about the box centre. Because it is one
-  render state, the content gets its native per-context display transform ONCE and reads correctly as a 3D block in
-  every context, occluded by the box geometry through the depth test - no second display transform, no ordering tricks.
-- Why not a separate submission with a hand-built transform: an earlier attempt drew the content as a separate pass
-  at a fixed orientation. A single fixed rotation cannot match every block's per-context display transform (a
-  dispenser, stairs and a slab each orient differently), so it was always wrong for some block in some context.
-  Composing as a layer makes the correct orientation EMERGE from vanilla, exactly like the bundle, instead of being
-  re-coded.
-- The scale pivots about the FIXED box centre (0.5, 0.5, 0.5), not the content's own centre, so each shape keeps its
-  natural place in the box: a full block centres, a bottom slab sits in the lower half.
-- Concession - block content only. Non-block (2D) items (tools, food, ...) are not drawn inside the box yet. Their
-  per-context transform is hand-calibrated and overflows the shrunk box, and forcing the GUI transform instead breaks
-  on three axes inside a world render: position (the GUI transform's translation is applied after our scale and cannot
-  be countered from the layer), orientation (the GUI transform is screen-space, so the item lies flat in third
-  person), and lighting (`gui_light: front` items are lit for the GUI's flat front light and look dark under the
-  world's directional light). Drawing a non-block like its inventory slot needs a separate camera-facing (billboard)
-  render; it is planned but not yet shipped.
+Classified by HOW it renders, not by item type. A content item is FLAT (2D sprite) or a 3D block from its model's own
+`usesBlockLight` flag (`PocketBuildContentRender`): true for a shaded 3D cube, false for a flat sprite. `instanceof
+BlockItem` does NOT capture this - a sapling is a BlockItem yet renders as a flat cross - so the render path keys on the
+flag. (Placement legality stays a separate BlockItem test, `PocketBuildRules`; the two are different questions.)
+
+Why centring reads the box's REAL geometry centre, not (0.5, 0.5, 0.5). As an item, the shulker box is drawn by its
+special renderer in its ENTITY-model native space: `ShulkerBoxRenderer` applies its block-entity re-centring transform
+(`translate(0.5)`, `scale(1,-1,-1)`, `translate(0,-1,0)`) only when given a direction, i.e. for a placed block-entity,
+NOT for an item. So the box's visual centre is not (0.5, 0.5, 0.5), and content placed there drifts off the box (onto
+the hand in first person). The box's true centre is instead read live from its own layers' extents (pushed through
+their full transform) and the content is centred on THAT - which holds in every context because both are expressed in
+the same shared (pre-outer-pose) space, so the shared outer pose preserves the alignment.
+
+- 3D block content. Kept on its native per-context display transform, so the orientation EMERGES from vanilla like the
+  bundle (a dispenser, stairs and a slab each orient correctly), shrunk 0.6, and in held views re-centred on the box's
+  real centre in ALL axes. The offset is added to the block's display-transform translation, which shifts the content
+  in the shared space and lands it exactly on the box centre whatever the held pose is. For a cube-filling block the
+  offset is ~0, so normal blocks are UNTOUCHED. This corrects two otherwise-misplaced cases: (a) flat blocks (carpets,
+  pressure plates) whose vanilla first-person hold lifts them out the top of the box, and (b) special-renderer or
+  off-centre models (mob heads, conduit, copper golem statues, nested shulkers, beds, shelves, big dripleaf, end rod)
+  whose geometry sits away from the cube centre.
+- Flat (2D) content (tools, the shield, flat blocks like saplings). Drawn with its GUI model, its own display transform
+  dropped to `NO_TRANSFORM` (a flat sprite's GUI transform has no rotation, so dropping it keeps the orientation but
+  removes the positioning translation that would otherwise anchor it to the hand), then centred on the box's real
+  centre and scaled: 0.5 of the box, 0.4 in third person, with a small upward nudge in first person (a flat sprite
+  otherwise sits a touch low and the wider ones, e.g. a sword or trident, clip the box edges). `NO_TRANSFORM` itself
+  still applies a `translate(-0.5)` inside `ItemTransform.apply`, which is compensated in the centring maths.
+  - Concession - slot lighting. In the GUI the lighting entry (3D vs flat) is chosen ONCE per item render state, from
+    the FIRST layer - the box, a 3D block (`GuiItemAtlas` reads `usesBlockLight`) - so a flat sprite composed into it
+    inherits the box's 3D diffuse and looks a touch DIMMER than its normal inventory icon. Its own flat lighting would
+    need a separate render state, but a separate GUI item has its own depth and could not be HALF inside the box (in
+    front of one wall and behind another): depth and lighting are coupled per render state in the GUI atlas. The
+    dim-but-correctly-occluded layer is the accepted trade-off; held/world lighting is already correct (the world pass
+    lights it directly).
+
+Known limitation - special-renderer blocks. Mob heads, conduit, copper golem statues, nested shulkers and beds are now
+correctly POSITIONED (centred), but they are drawn by their own block-entity renderers in entity-model space, so their
+ORIENTATION (some appear flipped) and COMPLETENESS (a bed is two separate HEAD/FOOT pieces; a tall model's lower half is
+occluded by the box wall) still reflect those renderers, and the GUI slot is not re-centred for them. Matching each one
+would be per-renderer special-casing, a fragile divergence for a handful of exotic items, so it is left as a known
+limitation.
 
 ### Lid dissolve (1.1.1)
 
