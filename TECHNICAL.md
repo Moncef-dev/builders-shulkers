@@ -242,8 +242,10 @@ server-authoritative, so nothing can be duplicated.
 - Peek overlay and item name (client HUD). While Ctrl is held (after a short debounce, so the quick Ctrl + right-click
   toggle never flashes it), `PocketBuildOverlay` draws the 27 contents as the actual vanilla shulker-box container
   interface above the hotbar (through the 26.1.2 `GuiGraphicsExtractor`), with the selected slot under the vanilla
-  container hover highlight. `GuiSelectedItemNameMixin` redirects the held-stack read in `Gui.tick` to the selected
-  content, so the vanilla hotbar item-name popup names the content (pop, fade, rarity colour) on each scroll.
+  container hover highlight. Each item is drawn with vanilla's own `itemDecorations` (count, durability bar, cooldown
+  overlay), so every slot subtlety appears exactly as in any container, instead of being redrawn by hand (1.1.1).
+  `GuiSelectedItemNameMixin` redirects the held-stack read in `Gui.tick` to the selected content, so the vanilla hotbar
+  item-name popup names the content (pop, fade, rarity colour) on each scroll.
 - Payloads: `PocketBuildModePayload` (C2S: enter/exit, hotbar slot, animation id, selected content slot) and
   `PocketBuildSelectPayload` (C2S: selected content slot).
 

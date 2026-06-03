@@ -68,7 +68,9 @@ public final class PocketBuildOverlay {
 		// Title (the held shulker's name), like the real container header.
 		g.text(mc.font, shulker.getHoverName(), x0 + FIRST_SLOT_X, y0 + 6, TITLE_COLOR, false);
 
-		// Items + counts.
+		// Items, rendered exactly like a vanilla container slot: the icon plus the full vanilla decorations (count,
+		// durability bar, cooldown overlay). Using vanilla's own itemDecorations means every subtlety emerges - and
+		// anything we would forget by drawing it by hand is already covered.
 		for (int i = 0; i < COLS * ROWS; i++) {
 			ItemStack stack = items.get(i);
 			if (stack.isEmpty()) {
@@ -77,11 +79,7 @@ public final class PocketBuildOverlay {
 			int ix = itemX(x0, i);
 			int iy = itemY(y0, i);
 			g.item(stack, ix, iy);
-			if (stack.getCount() > 1) {
-				String count = String.valueOf(stack.getCount());
-				int tw = mc.font.width(count);
-				g.text(mc.font, count, ix + ITEM - tw, iy + ITEM - mc.font.lineHeight + 2, 0xFFFFFFFF, true);
-			}
+			g.itemDecorations(mc.font, stack, ix, iy);
 		}
 
 		// Selected slot: vanilla container hover wash.
