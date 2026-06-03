@@ -297,14 +297,18 @@ the same shared (pre-outer-pose) space, so the shared outer pose preserves the a
 
 - 3D block content. Kept on its native per-context display transform, so the orientation EMERGES from vanilla like the
   bundle (a dispenser, stairs and a slab each orient correctly), shrunk 0.6, and re-centred on the box's real centre in
-  ALL axes. The offset is added to the block's display-transform translation, which shifts the content in the shared
-  space and lands it exactly on the box centre whatever the pose is. For a cube-filling block the offset is ~0, so
-  normal blocks are UNTOUCHED. Re-centring runs in held views for EVERY block, and in the GUI slot ONLY for
-  special-renderer content (detected from the layer's special block-entity renderer); a plain block model is left at its
-  vanilla slot position, so slabs and carpets still sit low as in the inventory. This corrects: (a) flat blocks (carpets,
-  pressure plates) lifted out the top by their vanilla first-person hold, and (b) special-renderer or off-centre models
-  (mob heads, conduit, copper golem statues, nested shulkers, beds, shelves, big dripleaf, end rod) whose geometry sits
-  away from the cube centre - off in held, and for the special renderers in the slot too.
+  ALL axes. The 0.6 shrink is COMPOSED with each layer's own localTransform, not substituted for it: a plain block has
+  an identity localTransform there, but a special block-entity renderer (skull, conduit, copper golem statue, shulker,
+  bed) keeps its model-fitting transform there - the entity-model Y-flip and scaling, and a bed's separate HEAD/FOOT
+  placement - so composing preserves it; substituting it dropped the fit and left a statue upside down or a bed reduced
+  to a single piece. The centre offset is added to the block's display-transform translation, which shifts the content
+  in the shared space and lands it on the box centre whatever the pose is. For a cube-filling block both are ~no-ops
+  (identity fit, ~0 offset), so normal blocks are UNTOUCHED. Re-centring runs in held views for EVERY block, and in the
+  GUI slot ONLY for special-renderer content (detected from the layer's special block-entity renderer); a plain block
+  model keeps its vanilla slot position, so slabs and carpets still sit low as in the inventory. This corrects: (a) flat
+  blocks (carpets, pressure plates) lifted out the top by their vanilla first-person hold, and (b) special-renderer or
+  off-centre models (mob heads, conduit, copper golem statues, nested shulkers, beds, shelves, big dripleaf, end rod)
+  whose position and orientation were otherwise off in the box.
 - Flat (2D) content (tools, the shield, flat blocks like saplings). Drawn with its GUI model, its own display transform
   dropped to `NO_TRANSFORM` (a flat sprite's GUI transform has no rotation, so dropping it keeps the orientation but
   removes the positioning translation that would otherwise anchor it to the hand), then centred on the box's real
@@ -319,12 +323,13 @@ the same shared (pre-outer-pose) space, so the shared outer pose preserves the a
     dim-but-correctly-occluded layer is the accepted trade-off; held/world lighting is already correct (the world pass
     lights it directly).
 
-Known limitation - special-renderer blocks. Mob heads, conduit, copper golem statues, nested shulkers, beds and the
-decorated pot are now correctly POSITIONED (centred, in held AND in the slot), but they are drawn by their own
-block-entity renderers in entity-model space, so their ORIENTATION (some appear flipped) and COMPLETENESS (a bed is two
-separate HEAD/FOOT pieces; a tall model's lower half is occluded by the box wall) still reflect those renderers.
-Matching each one would be per-renderer special-casing, a fragile divergence for a handful of exotic items, so it is
-left as a known limitation.
+Known limitation - special-renderer blocks in third person. Mob heads, copper golem statues, beds and the decorated
+pot now render correctly in the slot and first person (positioned, oriented and complete), but in THIRD person they keep
+their own vanilla held pose, which reads as the block being "held by the player" rather than sitting in the box. That
+pose is the block's own third-person display transform (the box matches it exactly); overriding it cleanly, without
+disturbing the blocks whose third-person hold already reads fine (chest, conduit), would need per-block handling. Two
+smaller cases also remain: the decorated pot falls back to its flat inventory icon in the slot, and a nested shulker's
+lower half is occluded by the box wall. These are left as known limitations for now.
 
 ### Lid dissolve (1.1.1)
 

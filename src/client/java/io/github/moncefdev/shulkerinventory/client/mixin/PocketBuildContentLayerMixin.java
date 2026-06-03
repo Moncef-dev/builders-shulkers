@@ -113,13 +113,19 @@ public abstract class PocketBuildContentLayerMixin {
 				layers[i].setLocalTransform(localTransform);
 			}
 		} else {
-			// 3D block: a small block shrunk 0.6 about the box centre, keeping its per-context transform. UNTOUCHED.
+			// 3D block: a small block shrunk 0.6 about the box centre. The shrink is COMPOSED with each layer's own
+			// localTransform, not substituted for it: a plain block model has an identity localTransform so this is just
+			// the 0.6 shrink (UNTOUCHED), but a special block-entity renderer (skull, conduit, copper golem statue, shulker,
+			// bed) keeps its model-fitting transform there - the entity-model Y-flip, scaling, and a bed's separate HEAD/FOOT
+			// placement. Overwriting it dropped that fit (statue upside down, bed reduced to one piece); pre-multiplying the
+			// shrink keeps the fit and only shrinks it.
 			localTransform = new Matrix4f()
 					.translate(BOX_CENTER, BOX_CENTER, BOX_CENTER)
 					.scale(BLOCK_CONTENT_SCALE)
 					.translate(-BOX_CENTER, -BOX_CENTER, -BOX_CENTER);
 			for (int i = before; i < after; i++) {
-				layers[i].setLocalTransform(localTransform);
+				Matrix4f fit = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getLocalTransform();
+				layers[i].setLocalTransform(new Matrix4f(localTransform).mul(fit));
 			}
 			// In held views, centre the block on the box in ALL axes. A block that fills the cube (full blocks, stairs,
 			// walls) is already centred, so its offset is ~0 and it is untouched; a block whose geometry is NOT centred
