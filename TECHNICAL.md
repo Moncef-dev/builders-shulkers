@@ -282,10 +282,18 @@ render state, the vanilla bundle technique: `PocketBuildContentLayerMixin` (`@In
 One render state means the content shares the box's depth, so it is occluded by the box geometry through the depth test
 (it reads as sitting INSIDE the box), with no second pass and no ordering tricks.
 
-Classified by HOW it renders, not by item type. A content item is FLAT (2D sprite) or a 3D block from its model's own
-`usesBlockLight` flag (`PocketBuildContentRender`): true for a shaded 3D cube, false for a flat sprite. `instanceof
-BlockItem` does NOT capture this - a sapling is a BlockItem yet renders as a flat cross - so the render path keys on the
-flag. (Placement legality stays a separate BlockItem test, `PocketBuildRules`; the two are different questions.)
+Classified by HOW it renders, not by item type, all by inherent render signals (no hard-coded item list), cached per
+item in `PocketBuildContentRender`:
+- FLAT (2D sprite) vs 3D block: the model's own `usesBlockLight` flag (`isFlat`) - true for a shaded 3D cube, false for
+  a flat sprite. `instanceof BlockItem` does NOT capture this - a sapling is a BlockItem yet renders as a flat cross.
+- Special-renderer block: any content drawn by a block-entity special renderer (`isSpecial`) - skull, conduit, copper
+  golem statue, shulker, bed, chest, decorated pot - detected from the probe's layers.
+- The one type test: a BlockItem that has a special renderer yet reports FLAT lighting (`isSpecial && isFlat &&
+  instanceof BlockItem`). This is the decorated pot: its 3D inventory look comes from the oversized picture-in-picture
+  path, which the in-box composition bypasses, so its layer is flat-lit and straight. It is pulled back onto the 3D
+  path (below). A flat special item that is NOT a block (a shield) is genuinely flat and stays on the flat path.
+
+(Placement legality stays a separate BlockItem test, `PocketBuildRules`; the two are different questions.)
 
 Why centring reads the box's REAL geometry centre, not (0.5, 0.5, 0.5). As an item, the shulker box is drawn by its
 special renderer in its ENTITY-model native space: `ShulkerBoxRenderer` applies its block-entity re-centring transform
@@ -295,41 +303,68 @@ the hand in first person). The box's true centre is instead read live from its o
 their full transform) and the content is centred on THAT - which holds in every context because both are expressed in
 the same shared (pre-outer-pose) space, so the shared outer pose preserves the alignment.
 
-- 3D block content. Kept on its native per-context display transform, so the orientation EMERGES from vanilla like the
-  bundle (a dispenser, stairs and a slab each orient correctly), shrunk 0.6, and re-centred on the box's real centre in
-  ALL axes. The 0.6 shrink is COMPOSED with each layer's own localTransform, not substituted for it: a plain block has
-  an identity localTransform there, but a special block-entity renderer (skull, conduit, copper golem statue, shulker,
-  bed) keeps its model-fitting transform there - the entity-model Y-flip and scaling, and a bed's separate HEAD/FOOT
-  placement - so composing preserves it; substituting it dropped the fit and left a statue upside down or a bed reduced
-  to a single piece. The centre offset is added to the block's display-transform translation, which shifts the content
-  in the shared space and lands it on the box centre whatever the pose is. For a cube-filling block both are ~no-ops
-  (identity fit, ~0 offset), so normal blocks are UNTOUCHED. Re-centring runs in held views for EVERY block, and in the
-  GUI slot ONLY for special-renderer content (detected from the layer's special block-entity renderer); a plain block
-  model keeps its vanilla slot position, so slabs and carpets still sit low as in the inventory. This corrects: (a) flat
-  blocks (carpets, pressure plates) lifted out the top by their vanilla first-person hold, and (b) special-renderer or
-  off-centre models (mob heads, conduit, copper golem statues, nested shulkers, beds, shelves, big dripleaf, end rod)
-  whose position and orientation were otherwise off in the box.
-- Flat (2D) content (tools, the shield, flat blocks like saplings). Drawn with its GUI model, its own display transform
-  dropped to `NO_TRANSFORM` (a flat sprite's GUI transform has no rotation, so dropping it keeps the orientation but
-  removes the positioning translation that would otherwise anchor it to the hand), then centred on the box's real
-  centre and scaled: 0.5 of the box, 0.4 in third person, with a small upward nudge in first person (a flat sprite
-  otherwise sits a touch low and the wider ones, e.g. a sword or trident, clip the box edges). `NO_TRANSFORM` itself
-  still applies a `translate(-0.5)` inside `ItemTransform.apply`, which is compensated in the centring maths.
-  - Concession - slot lighting. In the GUI the lighting entry (3D vs flat) is chosen ONCE per item render state, from
-    the FIRST layer - the box, a 3D block (`GuiItemAtlas` reads `usesBlockLight`) - so a flat sprite composed into it
-    inherits the box's 3D diffuse and looks a touch DIMMER than its normal inventory icon. Its own flat lighting would
-    need a separate render state, but a separate GUI item has its own depth and could not be HALF inside the box (in
-    front of one wall and behind another): depth and lighting are coupled per render state in the GUI atlas. The
-    dim-but-correctly-occluded layer is the accepted trade-off; held/world lighting is already correct (the world pass
-    lights it directly).
+**The unified 3D-block path.** Every non-flat block - a plain block (deepslate, stairs, walls), a block with a CUSTOM
+display (big/small dripleaf), and a special-renderer block (statue, chest, conduit, bed, mob head, shulker, decorated
+pot) - takes ONE path: appended with the GUI (inventory) display, turned to follow the box, shrunk, and re-centred.
 
-Known limitation - special-renderer blocks in third person. Mob heads, copper golem statues, beds and the decorated
-pot now render correctly in the slot and first person (positioned, oriented and complete), but in THIRD person they keep
-their own vanilla held pose, which reads as the block being "held by the player" rather than sitting in the box. That
-pose is the block's own third-person display transform (the box matches it exactly); overriding it cleanly, without
-disturbing the blocks whose third-person hold already reads fine (chest, conduit), would need per-block handling. Two
-smaller cases also remain: the decorated pot falls back to its flat inventory icon in the slot, and a nested shulker's
-lower half is occluded by the box wall. These are left as known limitations for now.
+- Orientation - follow the box (`boxGuiRef` + a rotation delta). The content is appended with the GUI display, which is
+  correct in the slot for every block. In held views the box turns to its held display; the content must turn WITH it.
+  Applied per layer: `delta = boxRot(context) * boxRot(gui)^-1` (the rotation the box itself undergoes from its GUI
+  display to this context), pre-multiplied onto the layer's own GUI rotation (composed in quaternions, re-expressed as
+  Euler XYZ to match `ItemTransform`). So the content keeps its correct inventory orientation and merely follows the
+  box - exactly like a plain block does. A block's OWN per-context display is NOT used because it can be a "held in the
+  hand" pose in third person (mob heads, statues, the dripleaf's custom display) that reads as held-by-the-player; a
+  plain block (deepslate) lands on the orientation it already had natively (the delta reconstructs it), so it is
+  unchanged in result, while a custom/special block is pulled onto the same box-following orientation. `boxRot(gui)` is
+  the reference read from `boxGuiRef` (below). Scope: all non-flat content.
+- The shrink is COMPOSED with each layer's own localTransform, not substituted for it: a plain block has an identity
+  localTransform there, but a special block-entity renderer keeps its model-fitting transform there - the entity-model
+  Y-flip and scaling, and a bed's separate HEAD/FOOT placement - so composing preserves it; substituting it dropped the
+  fit and left a statue upside down or a bed reduced to a single piece.
+- Size - 0.6x the content's OWN natural footprint, tracked across views. Measured from the content's fitted extents and
+  capped so a block larger than the box shrinks further to fit (`0.6 * min(1, box/content)`), which keeps natural
+  proportions: a conduit (model ~0.6 of a full block) stays small, a chest stays chest-sized, instead of all being
+  inflated to one box-fraction. Because the content is appended GUI-scaled (constant) while the box shrinks in held
+  views, the content's scale is also multiplied by the box's OWN shrink factor (`boxScale-now / boxScale-gui`, from
+  `boxGuiRef`) - a single scalar that keeps each item's proportions intact and makes the in-box size ratio the same in
+  the slot and in hand. Scope: all non-flat content.
+- Oversized-flat block (the decorated pot, the one type test above). Its GUI layer is flat and straight, so the
+  standard block iso rotation (`boxGuiRef`'s GUI rotation) is substituted onto it before the delta, giving it the 3D
+  inventory look; it then follows the box and shrinks like the others. Scope: a BlockItem with a special renderer that
+  reports flat.
+- Centre offset (all axes). The offset (box centre - content centre, read from the layers' transformed extents) is
+  added to the block's display-transform translation, shifting the content in the shared space onto the box centre
+  whatever the pose is. For a cube-filling block the offset is ~0, so those blocks are untouched; an off-centre model
+  (mob head, conduit, statue, bed, dripleaf, end rod) or a thin block (carpet, pressure plate) lifted out the top by
+  its vanilla first-person hold is pulled to the centre.
+
+**The flat (2D) path** (tools, the shield, flat blocks like saplings). Drawn with its GUI model, its own display
+transform dropped to `NO_TRANSFORM` (a flat sprite's GUI transform has no rotation, so dropping it keeps the
+orientation but removes the positioning translation that would otherwise anchor it to the hand), then centred on the
+box's real centre and scaled: 0.5 of the box, 0.4 in third person, with a small upward nudge in first person (a flat
+sprite otherwise sits a touch low and the wider ones, e.g. a sword or trident, clip the box edges). `NO_TRANSFORM`
+itself still applies a `translate(-0.5)` inside `ItemTransform.apply`, compensated in the centring maths.
+- Concession - slot lighting. In the GUI the lighting entry (3D vs flat) is chosen ONCE per item render state, from the
+  FIRST layer - the box, a 3D block (`GuiItemAtlas` reads `usesBlockLight`) - so a flat sprite composed into it inherits
+  the box's 3D diffuse and looks a touch DIMMER than its normal inventory icon. Its own flat lighting would need a
+  separate render state, but a separate GUI item has its own depth and could not be HALF inside the box (in front of
+  one wall and behind another): depth and lighting are coupled per render state in the GUI atlas. The
+  dim-but-correctly-occluded layer is the accepted trade-off; held/world lighting is already correct.
+
+**The box GUI reference (`boxGuiRef`).** The box's GUI display rotation and scale - the reference the orientation delta
+and the size shrink-factor divide FROM. Probed deterministically from the box item's OWN model (vanilla, or whatever a
+resource pack defines for that colour), on a fresh marker-less stack so the content mixin does nothing during the probe
+(no re-entrancy), cached per item. A few floats per shulker colour; a RAM-only memoisation of a deterministic model
+property, nothing on disk.
+
+**On this section's complexity and its future.** This path deliberately classifies and re-orients content by reading
+vanilla's OWN render signals (the block-light flag, the presence of a special renderer, the display transforms) rather
+than a hard-coded list of items, so it follows modded and future items automatically through the same generic path. The
+handful of cases handled by hand (the oversized-flat block routed back to 3D; the shared-model nested shulker) exist
+only because the base item-render layer groups a few items in ways the in-box composition then has to unpick. As
+Minecraft's item-render categories and their exceptions evolve, some of those hand-handled cases may be expressible
+through the generic path and fold back into it. Any future change that removes a special case or a concession WITHOUT a
+regression will be adopted.
 
 ### Lid dissolve (1.1.1)
 
@@ -360,7 +395,8 @@ composed inside the box.
 - The dissolve runs for the whole Pocket-Build open, including an empty selection (so the lid behaves the same whether
   or not a block is selected): it is gated on `ClientShulkerSession.isPocketBuild` (a per-animation flag set when the
   mode opens the box), NOT on the content being present. It is scoped to the local player's live held shulker through
-  the render side channel, so placed shulker blocks and other shulkers are never touched.
+  the render side channel, so placed shulker blocks and other shulkers are never touched. A shulker drawn INSIDE the
+  box as content is also excluded (the content-layer flag, see Section 8): it keeps an opaque, un-dissolved lid.
 
 ## 9. Compatibility notes for other mod authors
 

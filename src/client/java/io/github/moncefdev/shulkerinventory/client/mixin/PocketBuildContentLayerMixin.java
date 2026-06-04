@@ -8,10 +8,12 @@ import net.minecraft.client.renderer.item.ItemModelResolver;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.world.entity.ItemOwner;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.spongepowered.asm.mixin.Mixin;
@@ -57,10 +59,29 @@ public abstract class PocketBuildContentLayerMixin {
 		if (content.isEmpty()) {
 			return;
 		}
-		boolean flat = PocketBuildContentRender.isFlat(content, level);
-		// 3D block: the shulker's own per-context transform (settled). Flat: the GUI model, re-centred and transform-
-		// stripped below so it sits on the box centre.
-		ItemDisplayContext contentContext = flat ? ItemDisplayContext.GUI : displayContext;
+		boolean specialRenderer = PocketBuildContentRender.isSpecial(content, level);
+		boolean flatReport = PocketBuildContentRender.isFlat(content, level);
+		boolean faceOn = PocketBuildContentRender.isFaceOnGui(content, level);
+		// Two different "reports FLAT lighting but is really 3D" cases, told apart by the NATIVE GUI rotation:
+		//  - decorated_pot: reports flat AND is face-on (rotation ~0). Its inventory iso normally comes from the oversized
+		//    PIP, which our in-box composition bypasses, so the flat path would draw it as a flat icon. Route it to 3D AND
+		//    substitute the standard block iso onto each layer (flatBlockSpecial, used below at the iso-substitution step).
+		//  - calibrated_sculk_sensor / banners / a tilted shield: report flat but are ALREADY iso-rotated natively (a 3D
+		//    block with front gui_light, a banner, a shield's display). They must take the unified 3D path AS-IS so they
+		//    follow the box instead of being drawn flat (flatBlockIso). This also pulls shield + banners onto the 3D path.
+		boolean flatBlockSpecial = specialRenderer && flatReport && faceOn && content.getItem() instanceof BlockItem;
+		boolean flatBlockIso = flatReport && !faceOn;
+		boolean flat = flatReport && !flatBlockSpecial && !flatBlockIso;
+		// Every non-flat item is a 3D block and takes the unified block path below (GUI display + box-following delta +
+		// 0.6 shrink). A plain block (deepslate) lands on the orientation it already had natively; a block with a CUSTOM
+		// held display (a dripleaf) or a special-renderer block (statue, chest) is pulled onto the box-following
+		// orientation instead of its own held pose. specialRenderer now only routes decorated_pot (flatBlockSpecial).
+		boolean special = !flat;
+		// All content is appended with the GUI (inventory) display: flat sprites and 3D blocks alike. A 3D block's own
+		// per-context display can be a held-in-hand pose that reads wrong nested in the box; the GUI display is the same
+		// upright look the slot shows, and the block branch then turns it WITH the box via the delta. Flat content drops
+		// its transform entirely (below).
+		ItemDisplayContext contentContext = ItemDisplayContext.GUI;
 		ItemStackRenderStateAccessor state = (ItemStackRenderStateAccessor) output;
 		int before = state.shulkerInventory$getActiveLayerCount();
 		((ItemModelResolver) (Object) this).appendItemLayers(output, content, contentContext, level, owner, seed);
@@ -113,15 +134,95 @@ public abstract class PocketBuildContentLayerMixin {
 				layers[i].setLocalTransform(localTransform);
 			}
 		} else {
+			// Box GUI display reference (rotation + scale), probed deterministically from the box's own model, cached.
+			float[] boxRef = PocketBuildContentRender.boxGuiRef(item, level);
 			// 3D block: a small block shrunk 0.6 about the box centre. The shrink is COMPOSED with each layer's own
 			// localTransform, not substituted for it: a plain block model has an identity localTransform so this is just
 			// the 0.6 shrink (UNTOUCHED), but a special block-entity renderer (skull, conduit, copper golem statue, shulker,
 			// bed) keeps its model-fitting transform there - the entity-model Y-flip, scaling, and a bed's separate HEAD/FOOT
 			// placement. Overwriting it dropped that fit (statue upside down, bed reduced to one piece); pre-multiplying the
 			// shrink keeps the fit and only shrinks it.
+			// Make a special-renderer block follow the box's orientation EXACTLY like a plain block (deepslate) does,
+			// WITHOUT discarding its own intrinsic orientation. The content is appended with the GUI display, which is
+			// correct in the slot for every special block (statue upright, bed laid flat, head facing out); a held pose
+			// then rotates the box, and because the content's GUI rotation is fixed it no longer matches, multiplying into
+			// a 3-axis skew. Fix: apply to the content the SAME rotation the box undergoes from its GUI display to this
+			// context (delta = boxRot(context) * boxRot(gui)^-1), pre-multiplied onto each layer's own GUI rotation. So
+			// the content keeps its correct GUI orientation and merely turns with the box. Simply copying the box's
+			// rotation instead would drop the content's intrinsic part and, combined with an entity model's own fit flip,
+			// turn a copper golem statue upside down or yaw a bed's two halves wrong. In GUI the delta is identity, so the
+			// slot is untouched. Done before the size + centring below so both measure the final orientation. The GUI
+			// reference (boxRef) is probed deterministically from the box's own item model (see boxGuiRef).
+			// An oversized special block (decorated pot) reports a STRAIGHT GUI rotation - its inventory iso normally comes
+			// from the oversized PIP, which our in-box composition bypasses - so substitute the standard block iso onto each
+			// layer. That gives it the 3D inventory look in the slot, and becomes the base the held delta below then turns.
+			if (flatBlockSpecial && before > 0) {
+				for (int i = before; i < after; i++) {
+					ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
+					layers[i].setItemTransform(new ItemTransform(new Vector3f(boxRef[0], boxRef[1], boxRef[2]), it.translation(), it.scale()));
+				}
+			}
+			boolean heldCtx = displayContext.firstPerson()
+					|| displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND
+					|| displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
+			if (special && before > 0 && heldCtx) {
+				Vector3fc boxRotCtx = ((LayerRenderStateAccessor) layers[0]).shulkerInventory$getItemTransform().rotation();
+				Quaternionf qBoxCtx = new Quaternionf().rotationXYZ(
+						(float) Math.toRadians(boxRotCtx.x()),
+						(float) Math.toRadians(boxRotCtx.y()),
+						(float) Math.toRadians(boxRotCtx.z()));
+				Vector3f boxGui = new Vector3f(boxRef[0], boxRef[1], boxRef[2]);
+				Quaternionf qBoxGuiInv = new Quaternionf().rotationXYZ(
+						(float) Math.toRadians(boxGui.x()),
+						(float) Math.toRadians(boxGui.y()),
+						(float) Math.toRadians(boxGui.z())).conjugate();
+				Quaternionf delta = new Quaternionf(qBoxCtx).mul(qBoxGuiInv);
+				for (int i = before; i < after; i++) {
+					ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
+					Vector3fc r = it.rotation();
+					Quaternionf qNew = new Quaternionf(delta).mul(new Quaternionf().rotationXYZ(
+							(float) Math.toRadians(r.x()),
+							(float) Math.toRadians(r.y()),
+							(float) Math.toRadians(r.z())));
+					Vector3f euler = qNew.getEulerAnglesXYZ(new Vector3f());
+					layers[i].setItemTransform(new ItemTransform(
+							new Vector3f((float) Math.toDegrees(euler.x),
+									(float) Math.toDegrees(euler.y),
+									(float) Math.toDegrees(euler.z)),
+							it.translation(), it.scale()));
+				}
+			}
+			// Make the content track the box's size across views. The content is appended GUI-scaled (for orientation), so
+			// it keeps the GUI display scale in every context; the box, in its own per-context display, shrinks in hand.
+			// Multiply the content's scale by the box's OWN shrink factor (boxScale-now / boxScale-in-GUI) - a single
+			// scalar, so each item keeps its own GUI proportions (no per-item skew). The size-relative pass below then
+			// measures a content and box that shrink together, so its result is the same in the slot and in hand (a
+			// conduit stays small in both, instead of being slot-correct but hand-sized). No-op in GUI (factor == 1).
+			if (special && before > 0 && boxRef[3] > 1.0e-4f) {
+				float boxNow = ((LayerRenderStateAccessor) layers[0]).shulkerInventory$getItemTransform().scale().x();
+				float factor = boxNow / boxRef[3];
+				if (Math.abs(factor - 1.0f) > 1.0e-4f) {
+					for (int i = before; i < after; i++) {
+						ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
+						Vector3fc s = it.scale();
+						layers[i].setItemTransform(new ItemTransform(it.rotation(), it.translation(),
+								new Vector3f(s.x() * factor, s.y() * factor, s.z() * factor)));
+					}
+				}
+			}
+			// Shrink content to a CONSTANT 0.6x of its OWN vanilla GUI size, exactly like a plain block (deepslate). Uniform,
+			// so two blocks with the same body (sculk_sensor vs calibrated_sculk_sensor, whose extra amethyst horn only
+			// widens its bbox on one axis) render at the SAME height - as they do in the vanilla slot, where every block
+			// uses the same fixed GUI scale. A naturally small model (conduit, ~0.6 of a full block) keeps its small
+			// proportion (0.6x of its small size), NOT inflated to fill the box. An earlier version scaled to 0.6 OF THE
+			// BOX (0.6 * box/content), which inflated small conduits; a min(1, box/content) cap was then added to undo that,
+			// but it ALSO over-shrank any block whose bbox merely exceeds the box on one thin axis (calibrated's horn) -
+			// breaking the same-height match. The constant 0.6x needs no cap: even the largest content (spore_blossom,
+			// ~1.25 box) still sits well inside the box at 0.6x. The footprint is still measured below for diagnostics only.
+			float blockScale = BLOCK_CONTENT_SCALE;
 			localTransform = new Matrix4f()
 					.translate(BOX_CENTER, BOX_CENTER, BOX_CENTER)
-					.scale(BLOCK_CONTENT_SCALE)
+					.scale(blockScale)
 					.translate(-BOX_CENTER, -BOX_CENTER, -BOX_CENTER);
 			for (int i = before; i < after; i++) {
 				Matrix4f fit = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getLocalTransform();
@@ -138,13 +239,6 @@ public abstract class PocketBuildContentLayerMixin {
 			boolean held = displayContext.firstPerson()
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
-			boolean special = false;
-			for (int j = before; j < after; j++) {
-				if (((LayerRenderStateAccessor) layers[j]).shulkerInventory$getSpecialRenderer() != null) {
-					special = true;
-					break;
-				}
-			}
 			if (held || (displayContext == ItemDisplayContext.GUI && special)) {
 				float[] boxF = shulkerInventory$finalBbox(layers, 0, before, displayContext.leftHand());
 				float[] conF = shulkerInventory$finalBbox(layers, before, after, displayContext.leftHand());
@@ -166,6 +260,7 @@ public abstract class PocketBuildContentLayerMixin {
 	// Axis-aligned bounding box {minX,minY,minZ,maxX,maxY,maxZ} over the RAW (untransformed) extents of layers
 	// [from, to), or null if those layers have no extents. Used for the content, whose own transform is dropped to
 	// NO_TRANSFORM, so its geometry centre is read directly from the model.
+
 	private static float[] shulkerInventory$bbox(ItemStackRenderState.LayerRenderState[] layers, int from, int to) {
 		float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
 		float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
