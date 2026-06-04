@@ -81,6 +81,13 @@ public final class PocketBuildClient {
 				exitMode();
 				return;
 			}
+			// Death ends the mode. Without keepInventory the shulker drops and the !stillShulker check below catches it;
+			// WITH keepInventory it stays in hand and neither the death nor the respawn screen is a container, so nothing
+			// else would close the mode.
+			if (mc.player.isDeadOrDying()) {
+				exitMode();
+				return;
+			}
 			ItemStack held = mc.player.getMainHandItem();
 			boolean stillShulker = ShulkerContents.isShulker(held);
 			// Only opening a container UI (the player's own inventory, a chest, any container) ends the mode, like
