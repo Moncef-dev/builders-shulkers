@@ -28,6 +28,7 @@
 		"InventorySelectedSlotMixin",
 		"MultiPlayerGameModeMixin",
 		"MultiPlayerGameModeInteractMixin",
+		"MultiPlayerGameModePickMixin",
 		"GuiSelectedItemNameMixin"
 	],
 	"injectors": {

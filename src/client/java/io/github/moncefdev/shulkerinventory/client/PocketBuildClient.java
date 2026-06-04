@@ -190,7 +190,7 @@ public final class PocketBuildClient {
 		ClientShulkerSession.playOwnSound(true);
 	}
 
-	private static void exitMode() {
+	public static void exitMode() {
 		long id = PocketBuildMode.animationId();
 		int slot = PocketBuildMode.sourceHotbarSlot();
 		PocketBuildMode.exit();
