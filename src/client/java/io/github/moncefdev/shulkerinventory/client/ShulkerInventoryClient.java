@@ -62,8 +62,14 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> ticksUntilServerModCheck = SERVER_MOD_CHECK_DELAY_TICKS);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ticksUntilServerModCheck = -1);
 
-		// Advance lid animations once per client tick.
-		ClientTickEvents.END_CLIENT_TICK.register(client -> ClientShulkerSession.tick());
+		// Advance lid animations once per client tick, but NOT while the game is paused (singleplayer pause menu): the
+		// world is frozen there, so the lids must freeze too for consistency. isPaused() is false in multiplayer, where
+		// the world keeps running and so should the animations.
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			if (!client.isPaused()) {
+				ClientShulkerSession.tick();
+			}
+		});
 
 		// Pocket-Build: Ctrl + right-click a held shulker to enter/exit the block-placement mode.
 		PocketBuildClient.register();
