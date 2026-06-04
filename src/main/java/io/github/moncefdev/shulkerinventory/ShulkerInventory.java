@@ -96,10 +96,15 @@ public class ShulkerInventory implements ModInitializer {
 				return;
 			}
 			ItemStack stack = inventory.getItem(hotbarSlot);
-			if (!ShulkerContents.isShulker(stack)) {
-				return;
-			}
 			if (payload.entering()) {
+				// Entering REQUIRES a shulker in the slot; leaving must NOT. Dropping the held shulker is itself an exit,
+				// so by the time this exit packet is processed the slot is already empty - guarding the exit on isShulker
+				// (a shared check used to) skipped the state clear, leaving the server stuck in Pocket-Build. A recovered
+				// shulker then kept swapping its content on right-click while the client, already out of the mode, predicted
+				// placing the shulker itself (ghost blocks; no dup, since the server stays authoritative).
+				if (!ShulkerContents.isShulker(stack)) {
+					return;
+				}
 				PocketBuildServerState.enter(player.getUUID(), payload.contentSlot());
 				ShulkerAnimationMarker.set(stack, payload.animationId());
 				InventoryShulkerBoxMenu.broadcastAnimation(player, payload.animationId(), true, true);
