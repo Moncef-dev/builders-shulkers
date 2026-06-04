@@ -17,13 +17,15 @@ public final class PocketBuildClientSwap {
 
 	public static InteractionResult runPredicted(Player player, ItemStack shulker, Supplier<InteractionResult> body) {
 		ItemStack content = PocketBuildMode.selectedStack(shulker);
-		// Build-only: a non-usable selection predicts nothing (mirrors the server gate so prediction matches authority).
-		if (!content.isEmpty() && !PocketBuildRules.isUsable(content)) {
-			return InteractionResult.FAIL;
-		}
+		// Swap the content in only when it is actually usable (a placeable block). For an empty or non-usable selection,
+		// run the SAME vanilla flow but with an EMPTY hand: it places/uses nothing, yet the use-event callbacks still
+		// fire and the bare interaction is not swallowed. That matters because both leaving the mode with Ctrl +
+		// right-click and "open a chest to leave" rely on the vanilla flow running - returning FAIL here instead skipped
+		// it entirely, so with a non-usable item selected the mode could not be closed by aiming at a block, and chests
+		// would not open. Mirrors the server gate (PocketBuildContentSwap) so prediction matches authority.
+		boolean swap = !content.isEmpty() && PocketBuildRules.isUsable(content);
 		int handSlot = player.getInventory().getSelectedSlot();
-		ItemStack held = content.copy();
-		player.getInventory().setItem(handSlot, held);
+		player.getInventory().setItem(handSlot, swap ? content.copy() : ItemStack.EMPTY);
 		try {
 			return body.get();
 		} finally {

@@ -19,31 +19,32 @@ public final class PocketBuildContentSwap {
 	public static InteractionResult runOnServer(Player player, ItemStack shulker,
 			Function<ItemStack, InteractionResult> body) {
 		NonNullList<ItemStack> items = ShulkerContents.read(shulker);
-		// Nothing selected (empty shulker -> slot -1): swap an EMPTY hand so the vanilla flow runs with no item
-		// (places nothing / just the bare interaction), never falling through to using the shulker itself.
 		int slot = PocketBuildServerState.selectedSlot(player.getUUID());
 		ItemStack content = slot >= 0 ? items.get(slot) : ItemStack.EMPTY;
-		// Build-only: a non-usable selection (anything that isn't a placeable block) does nothing. The shulker is never
-		// swapped out of hand here, so it can be neither placed nor lost. The future gamerule widens isUsable.
-		if (!content.isEmpty() && !PocketBuildRules.isUsable(content)) {
-			return InteractionResult.FAIL;
-		}
+		// Swap the selected content into hand only when it is actually usable (a placeable block). For an empty or a
+		// non-usable selection, run the vanilla flow with an EMPTY hand instead: nothing is placed or used (and the
+		// shulker, kept aside in a local until the finally, is never placed), but the bare interaction STILL runs - so a
+		// chest the player right-clicks (to leave the mode) actually opens, instead of the use being swallowed. The
+		// content slot is left untouched in that case (no write-back below), so a non-usable item can be neither placed
+		// nor lost. The future gamerule widens isUsable.
+		boolean swap = !content.isEmpty() && PocketBuildRules.isUsable(content);
 		int handSlot = player.getInventory().getSelectedSlot();
-		ItemStack held = content.copy();
+		ItemStack held = swap ? content.copy() : ItemStack.EMPTY;
 		player.getInventory().setItem(handSlot, held);
 		try {
-			// Pass the swapped-in content as the held item so the whole vanilla flow uses it (the block path also
-			// forwards it as its stack argument; the entity path reads the hand itself).
+			// Pass the swapped-in content (or EMPTY) as the held item so the whole vanilla flow uses it (the block path
+			// also forwards it as its stack argument; the entity path reads the hand itself).
 			return body.apply(held);
 		} finally {
-			// Write back the ACTUAL post-use stack from the hand (not a count delta): it captures everything the vanilla
-			// flow did to the content - plain count for a block, but also item REPLACEMENT/emptying (a powder snow bucket
-			// becomes an empty bucket) and, once the gamerule allows tools, durability/component changes. Read it before
-			// restoring the shulker. Items are conserved: the slot goes content -> afterUse, the difference is what
-			// vanilla placed/consumed into the world.
+			// For a real content swap, write back the ACTUAL post-use stack from the hand (not a count delta): it captures
+			// everything the vanilla flow did to the content - plain count for a block, but also item REPLACEMENT/emptying
+			// (a powder snow bucket becomes an empty bucket) and, once the gamerule allows tools, durability/component
+			// changes. Read it before restoring the shulker. Items are conserved: the slot goes content -> afterUse, the
+			// difference is what vanilla placed/consumed. For the EMPTY-hand case (empty or non-usable selection) there is
+			// nothing to write back: the content slot is left exactly as it was.
 			ItemStack afterUse = player.getInventory().getItem(handSlot).copy();
 			player.getInventory().setItem(handSlot, shulker);
-			if (slot >= 0) {
+			if (slot >= 0 && swap) {
 				items.set(slot, afterUse);
 				ShulkerContents.write(shulker, items);
 			}
