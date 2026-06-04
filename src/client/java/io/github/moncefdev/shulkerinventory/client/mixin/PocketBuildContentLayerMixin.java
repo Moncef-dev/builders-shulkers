@@ -247,14 +247,13 @@ public abstract class PocketBuildContentLayerMixin {
 				Matrix4f fit = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getLocalTransform();
 				layers[i].setLocalTransform(new Matrix4f(localTransform).mul(fit));
 			}
-			// In held views, centre the block on the box in ALL axes. A block that fills the cube (full blocks, stairs,
-			// walls) is already centred, so its offset is ~0 and it is untouched; a block whose geometry is NOT centred
-			// in the cube is pulled to the box centre. That covers two cases: a flat block lifted out the top by its
-			// vanilla first-person hold (carpet, pressure plate), and a special-renderer or off-centre model (mob heads,
-			// conduit, copper golem statues, nested shulkers, beds, shelves) whose geometry sits away from the cube
-			// centre. The offset is added to the block's display transform translation, which shifts the content in the
-			// box's shared (pre-outer-pose) space, so it lands on the box centre exactly whatever the held pose is.
-			// Orientation kept.
+			// Centre the block on the box. X and Z (horizontal) are centred in every view, so the block stays inside the
+			// box and does not drift toward the hand. The HEIGHT (Y) is centred ONLY in held views: there the box is
+			// tilted, so the full 3-axis centre is what keeps the block contained - dropping Y in held also skews the
+			// apparent X/Z under the hold rotation. In the upright GUI slot the height is NOT centred, so the block keeps
+			// its natural height (a slab rests on the box floor instead of being lifted to the vertical centre). The
+			// offset is added to the block's display transform translation, shifting the content in the box's shared
+			// (pre-outer-pose) space so it lands centred whatever the held pose is. Orientation kept.
 			boolean held = displayContext.firstPerson()
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
@@ -263,8 +262,9 @@ public abstract class PocketBuildContentLayerMixin {
 				float[] conF = shulkerInventory$finalBbox(layers, before, after, displayContext.leftHand());
 				if (boxF != null && conF != null) {
 					float offX = (boxF[0] + boxF[3] - conF[0] - conF[3]) * 0.5f;
-					float offY = (boxF[1] + boxF[4] - conF[1] - conF[4]) * 0.5f;
 					float offZ = (boxF[2] + boxF[5] - conF[2] - conF[5]) * 0.5f;
+					// Height centred in held only; in the upright GUI slot the block keeps its natural height.
+					float offY = held ? (boxF[1] + boxF[4] - conF[1] - conF[4]) * 0.5f : 0f;
 					for (int i = before; i < after; i++) {
 						ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
 						Vector3fc t = it.translation();
