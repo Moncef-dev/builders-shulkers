@@ -181,10 +181,14 @@ public abstract class PocketBuildContentLayerMixin {
 					layers[i].setItemTransform(new ItemTransform(new Vector3f(boxRef[0], boxRef[1], boxRef[2]), it.translation(), it.scale()));
 				}
 			}
+			// The DROPPED item entity (GROUND) shows the box in a posed, non-GUI display just like the hand does, so the
+			// content must follow the box and be contained in it there too. It was previously left on its GUI pose and
+			// position (delta and centring were held-only), which read as wrong orientation + position on a dropped box.
+			boolean dropped = displayContext == ItemDisplayContext.GROUND;
 			boolean heldCtx = displayContext.firstPerson()
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
-			if (special && before > 0 && heldCtx) {
+			if (special && before > 0 && (heldCtx || dropped)) {
 				Vector3fc boxRotCtx = ((LayerRenderStateAccessor) layers[0]).shulkerInventory$getItemTransform().rotation();
 				Quaternionf qBoxCtx = new Quaternionf().rotationXYZ(
 						(float) Math.toRadians(boxRotCtx.x()),
@@ -248,23 +252,23 @@ public abstract class PocketBuildContentLayerMixin {
 				layers[i].setLocalTransform(new Matrix4f(localTransform).mul(fit));
 			}
 			// Centre the block on the box. X and Z (horizontal) are centred in every view, so the block stays inside the
-			// box and does not drift toward the hand. The HEIGHT (Y) is centred ONLY in held views: there the box is
-			// tilted, so the full 3-axis centre is what keeps the block contained - dropping Y in held also skews the
-			// apparent X/Z under the hold rotation. In the upright GUI slot the height is NOT centred, so the block keeps
-			// its natural height (a slab rests on the box floor instead of being lifted to the vertical centre). The
+			// box and does not drift toward the hand. The HEIGHT (Y) is centred in held AND dropped views: there the box
+			// is posed (tilted), so the full 3-axis centre is what keeps the block contained - dropping Y there also skews
+			// the apparent X/Z under the pose rotation. In the upright GUI slot the height is NOT centred, so the block
+			// keeps its natural height (a slab rests on the box floor instead of being lifted to the vertical centre). The
 			// offset is added to the block's display transform translation, shifting the content in the box's shared
-			// (pre-outer-pose) space so it lands centred whatever the held pose is. Orientation kept.
+			// (pre-outer-pose) space so it lands centred whatever the pose is. Orientation kept.
 			boolean held = displayContext.firstPerson()
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND
 					|| displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
-			if (held || (displayContext == ItemDisplayContext.GUI && special)) {
+			if (held || dropped || (displayContext == ItemDisplayContext.GUI && special)) {
 				float[] boxF = shulkerInventory$finalBbox(layers, 0, before, displayContext.leftHand());
 				float[] conF = shulkerInventory$finalBbox(layers, before, after, displayContext.leftHand());
 				if (boxF != null && conF != null) {
 					float offX = (boxF[0] + boxF[3] - conF[0] - conF[3]) * 0.5f;
 					float offZ = (boxF[2] + boxF[5] - conF[2] - conF[5]) * 0.5f;
-					// Height centred in held only; in the upright GUI slot the block keeps its natural height.
-					float offY = held ? (boxF[1] + boxF[4] - conF[1] - conF[4]) * 0.5f : 0f;
+					// Height centred in held and dropped views; in the upright GUI slot the block keeps its natural height.
+					float offY = (held || dropped) ? (boxF[1] + boxF[4] - conF[1] - conF[4]) * 0.5f : 0f;
 					for (int i = before; i < after; i++) {
 						ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
 						Vector3fc t = it.translation();
