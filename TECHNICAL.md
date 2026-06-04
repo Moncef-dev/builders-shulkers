@@ -395,9 +395,13 @@ composed inside the box.
   texel's threshold in a mask texture. Cutout WRITES depth and never blends, so it is ORDER-INDEPENDENT: the opaque
   content shows through the holes in every context, and nothing behind the shulker (water, clouds) is masked through
   them - the exact two failures a real fade could not avoid.
-- The mask (`textures/misc/lid_dissolve_mask.png`, RGBA, alpha = an even spread of thresholds) is 512x512 to match
-  the shulker atlas, with `blur: false` (NEAREST), so one mask texel maps to one shulker texture texel and the
-  dissolve aligns exactly with the box's own 16-pixels-per-face art.
+- The mask is generated at runtime (`DissolveMask`), not shipped as a file. The shader reads ONLY the mask's alpha
+  (at the lid's UVs), so the mask is a 512x512 texture whose alpha is filled from a per-texel integer hash - an even,
+  uncorrelated spread of thresholds (white noise) - with RGB left unused. The exact pattern never mattered, only that
+  the thresholds are uniform, so a deterministic hash replaces a stored 512x512 RGBA PNG (three dead channels and
+  ~400 KB) with no visible change. 512x512 keeps the effective texel density over the shulker atlas sub-rectangle, and
+  the texture samples NEAREST, so the dissolve grain stays aligned with the box's own 16-pixels-per-face art. It is a
+  `DynamicTexture` (not a `ReloadableTexture`), so a resource reload leaves it in place.
   - Concession - texel granularity. The dissolve grain is the shulker texture's resolution, not the screen's, because
     the mask is sampled at the model's UVs. A custom screen-space dither shader would give per-screen-pixel grain at
     any zoom, but that is a custom render pipeline: a shader pack (Iris) replaces the pipeline and would not run it,

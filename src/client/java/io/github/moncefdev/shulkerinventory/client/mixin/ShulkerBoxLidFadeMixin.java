@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
+import io.github.moncefdev.shulkerinventory.client.DissolveMask;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -14,7 +15,6 @@ import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.sprite.SpriteGetter;
 import net.minecraft.client.resources.model.sprite.SpriteId;
-import net.minecraft.resources.Identifier;
 import net.minecraft.util.ARGB;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -32,9 +32,6 @@ import org.spongepowered.asm.mixin.injection.At;
 public abstract class ShulkerBoxLidFadeMixin {
 	// Above this openness (fully open) the lid is fully dissolved anyway, so we skip submitting it.
 	private static final float LID_HIDE_OPENNESS = 0.999f;
-	// RGBA mask: per-texel alpha is the dissolve threshold. A texel is discarded once (1 - openness) < its alpha.
-	private static final Identifier DISSOLVE_MASK = Identifier.fromNamespaceAndPath("shulker-inventory",
-			"textures/misc/lid_dissolve_mask.png");
 
 	@WrapOperation(
 			method = "submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;IIFLnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;Lnet/minecraft/client/resources/model/sprite/SpriteId;I)V",
@@ -58,7 +55,8 @@ public abstract class ShulkerBoxLidFadeMixin {
 				overlayCoords, atlasSprite, false, false, tintedColor, crumblingOverlay, outlineColor);
 		// Lid: dissolve (order-independent cutout), threshold driven by tint alpha = 1 - openness, until fully gone.
 		if (openness < LID_HIDE_OPENNESS) {
-			RenderType dissolve = sprite.renderType(texture -> RenderTypes.entityCutoutDissolve(texture, DISSOLVE_MASK));
+			RenderType dissolve = sprite.renderType(
+					texture -> RenderTypes.entityCutoutDissolve(texture, DissolveMask.identifier()));
 			collector.submitModelPart(lid, poseStack, dissolve, lightCoords, overlayCoords, atlasSprite, false, false,
 					ARGB.white(1.0f - openness), crumblingOverlay, outlineColor);
 		}
