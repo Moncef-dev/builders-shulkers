@@ -28,4 +28,9 @@ public interface LayerRenderStateAccessor {
 	// so it is re-centred there as well (a plain block model is not, keeping slabs/carpets at their vanilla slot spot).
 	@Accessor("specialRenderer")
 	SpecialModelRenderer<?> shulkerInventory$getSpecialRenderer();
+
+	// Swaps in a separate-model shulker renderer for a nested CONTENT shulker, so its lid pose is not coalesced with the
+	// box's shared model (see PocketBuildContentLayerMixin). Sets only the renderer field; transforms are left intact.
+	@Accessor("specialRenderer")
+	void shulkerInventory$setSpecialRenderer(SpecialModelRenderer<?> renderer);
 }

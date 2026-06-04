@@ -3,7 +3,16 @@ package io.github.moncefdev.shulkerinventory.client.mixin;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
+import io.github.moncefdev.shulkerinventory.client.PocketBuildContentLayer;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildContentRender;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.blockentity.ShulkerBoxRenderer;
+import net.minecraft.client.renderer.special.ShulkerBoxSpecialRenderer;
+import net.minecraft.client.renderer.special.SpecialModelRenderer;
+import net.minecraft.client.resources.model.sprite.SpriteGetter;
+import net.minecraft.client.resources.model.sprite.SpriteId;
 import net.minecraft.client.renderer.item.ItemModelResolver;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.resources.model.cuboid.ItemTransform;
@@ -37,6 +46,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // Pocket-Build shulker.
 @Mixin(ItemModelResolver.class)
 public abstract class PocketBuildContentLayerMixin {
+	// Separate-model shulker renderers for NESTED content shulkers, cached per colour sprite, so a content
+	// shulker's lid pose is not coalesced with the box's shared model (see separateNestedShulkerModel).
+	private static final Map<SpriteId, ShulkerBoxSpecialRenderer> CONTENT_SHULKER_RENDERERS = new ConcurrentHashMap<>();
 	// Flat sprites (tools, the shield...) read wider than a block at the same scale, so they are shrunk a bit more to
 	// stay inside the box (e.g. the sword and trident otherwise just clip the edges). A 3D block keeps the larger 0.6.
 	private static final float FLAT_CONTENT_SCALE = 0.5f;
@@ -87,6 +99,13 @@ public abstract class PocketBuildContentLayerMixin {
 		((ItemModelResolver) (Object) this).appendItemLayers(output, content, contentContext, level, owner, seed);
 		int after = state.shulkerInventory$getActiveLayerCount();
 		ItemStackRenderState.LayerRenderState[] layers = state.shulkerInventory$getLayers();
+		// Tag the appended layers as Pocket-Build content, so the shulker lid mixins keep a nested content shulker static
+		// (closed, no dissolve) while the outer box animates - whatever the draw order or the shulker colour.
+		for (int i = before; i < after; i++) {
+			((PocketBuildContentLayer) (Object) layers[i]).shulkerInventory$setPocketBuildContent(true);
+			shulkerInventory$separateNestedShulkerModel(layers[i]);
+		}
+
 
 		Matrix4f localTransform;
 		if (flat) {
@@ -260,6 +279,25 @@ public abstract class PocketBuildContentLayerMixin {
 	// Axis-aligned bounding box {minX,minY,minZ,maxX,maxY,maxZ} over the RAW (untransformed) extents of layers
 	// [from, to), or null if those layers have no extents. Used for the content, whose own transform is dropped to
 	// NO_TRANSFORM, so its geometry centre is read directly from the model.
+	// Give a nested CONTENT shulker its OWN model instance, so its (closed) lid pose is not coalesced with the box's
+	// shared model at draw. Same-colour shulkers share one ShulkerBoxModel per colour and vanilla resolves the lid from
+	// that single model, so a content shulker forced closed would otherwise drag the box's lid closed too. The separate
+	// renderer keeps the same colour sprite, is cached per sprite, and only the renderer field is swapped (transforms are
+	// left intact). No-op for non-shulker content.
+	private static void shulkerInventory$separateNestedShulkerModel(ItemStackRenderState.LayerRenderState layer) {
+		SpecialModelRenderer<?> renderer = ((LayerRenderStateAccessor) layer).shulkerInventory$getSpecialRenderer();
+		if (!(renderer instanceof ShulkerBoxSpecialRenderer shulker)) {
+			return;
+		}
+		ShulkerBoxSpecialRendererAccessor acc = (ShulkerBoxSpecialRendererAccessor) shulker;
+		ShulkerBoxSpecialRenderer separate = CONTENT_SHULKER_RENDERERS.computeIfAbsent(acc.shulkerInventory$getSprite(), s -> {
+			SpriteGetter sprites = ((ShulkerBoxRendererAccessor) acc.shulkerInventory$getShulkerBoxRenderer())
+					.shulkerInventory$getSprites();
+			ShulkerBoxRenderer freshRenderer = new ShulkerBoxRenderer(Minecraft.getInstance().getEntityModels(), sprites);
+			return new ShulkerBoxSpecialRenderer(freshRenderer, 0.0f, s);
+		});
+		((LayerRenderStateAccessor) layer).shulkerInventory$setSpecialRenderer(separate);
+	}
 
 	private static float[] shulkerInventory$bbox(ItemStackRenderState.LayerRenderState[] layers, int from, int to) {
 		float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;

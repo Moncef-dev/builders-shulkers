@@ -214,6 +214,21 @@ public final class ClientShulkerSession {
 		return currentAtlasRenderingId;
 	}
 
+	// True only while a layer that is Pocket-Build CONTENT (not the box itself) is being submitted - set by the layer
+	// submit mixin from a per-layer flag. The animated lid openness and the lid dissolve belong to the OUTER box only; a
+	// shulker drawn INSIDE it as content must stay closed/static. Keying on this per-layer flag is deterministic, unlike
+	// the old "first shulker drawn wins" approach, which broke when the box and a same-colour nested shulker batched
+	// together and the render reordered them. Render-thread only.
+	private static boolean renderingContentLayer = false;
+
+	public static void setRenderingContentLayer(boolean value) {
+		renderingContentLayer = value;
+	}
+
+	public static boolean isRenderingContentLayer() {
+		return renderingContentLayer;
+	}
+
 	// The animation id currently being rendered, resolved from the render side channel (the GUI atlas draw, or a
 	// held/dropped item draw), or 0 if none. Lets a render mixin know WHICH shulker animation is on screen right now
 	// (e.g. to draw the Pocket-Build selected content only inside the local player's own animated shulker).

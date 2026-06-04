@@ -20,7 +20,12 @@ public abstract class ShulkerBoxLidFadeGateMixin {
 	private void shulkerInventory$markPocketBuild(PoseStack poseStack, SubmitNodeCollector collector, int lightCoords,
 			int overlayCoords, boolean hasFoil, int outlineColor, CallbackInfo ci) {
 		long id = ClientShulkerSession.currentRenderingId();
-		ClientShulkerSession.setPocketBuildLidRendering(id != 0L && ClientShulkerSession.isPocketBuild(id));
+		boolean content = ClientShulkerSession.isRenderingContentLayer();
+		// Suppress only the DISSOLVE for a content shulker (keep its lid opaque, so it never collapses to base-only). Its
+		// lid OPENNESS is left to animate with the box: for a same-colour nested shulker the lid position is resolved at
+		// draw from the shared special-renderer instance, so forcing the content closed (openness 0) would drag the box's
+		// own lid to 0 too. The dissolve, by contrast, is decided per-submit (pbLid), so it can be suppressed safely.
+		ClientShulkerSession.setPocketBuildLidRendering(id != 0L && ClientShulkerSession.isPocketBuild(id) && !content);
 	}
 
 	@Inject(method = "submit", at = @At("RETURN"))

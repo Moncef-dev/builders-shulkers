@@ -351,6 +351,19 @@ itself still applies a `translate(-0.5)` inside `ItemTransform.apply`, compensat
   one wall and behind another): depth and lighting are coupled per render state in the GUI atlas. The
   dim-but-correctly-occluded layer is the accepted trade-off; held/world lighting is already correct.
 
+**Nested shulker content** (a shulker drawn inside the box - command-block only, as shulkers cannot be nested in
+survival). The content shulker stays closed (static, opaque) while the box opens, via two mechanisms:
+- A per-layer content flag (`PocketBuildContentLayer`, set on the appended layers; `LayerRenderStateContentMixin`
+  publishes it to the render side channel for the duration of each layer's submit). The lid openness and dissolve
+  mixins read it (`isRenderingContentLayer`) to keep a content shulker's lid at 0 and un-dissolved while the box
+  animates. Deterministic, independent of draw order or colour.
+- A SEPARATE-model renderer for the content shulker (`separateNestedShulkerModel`, using
+  `ShulkerBoxSpecialRendererAccessor` / `ShulkerBoxRendererAccessor`). Vanilla resolves a shulker lid pose from ONE
+  `ShulkerBoxModel` shared per colour, so forcing a same-colour content shulker closed would otherwise drag the box's
+  own lid closed too (they share that one model). A fresh `ShulkerBoxSpecialRenderer` with its OWN model (same colour
+  sprite) is built once per colour, cached, and swapped onto the content layer's renderer field. Scope: shulker content
+  only; an instance is created only when shulkers are actually nested, at most one per colour, never otherwise.
+
 **The box GUI reference (`boxGuiRef`).** The box's GUI display rotation and scale - the reference the orientation delta
 and the size shrink-factor divide FROM. Probed deterministically from the box item's OWN model (vanilla, or whatever a
 resource pack defines for that colour), on a fresh marker-less stack so the content mixin does nothing during the probe
