@@ -70,8 +70,33 @@ public final class PocketBuildMode {
 				break;
 			}
 		}
-		pos = pos < 0 ? 0 : Math.floorMod(pos + direction, count);
-		selectedContentSlot = nonEmpty[pos];
+		if (pos >= 0) {
+			// Still on a non-empty slot: step to the next (+1) or previous (-1) non-empty slot, wrapping.
+			selectedContentSlot = nonEmpty[Math.floorMod(pos + direction, count)];
+			return;
+		}
+		// The previously selected slot was EMPTIED (it is no longer in nonEmpty). Step to the non-empty slot that is the
+		// next (direction >= 0) or previous (direction < 0) BY SLOT INDEX, relative to where the selection was, wrapping -
+		// instead of snapping back to the first non-empty (what happened when pos fell through to 0).
+		if (direction >= 0) {
+			int chosen = nonEmpty[0];
+			for (int i = 0; i < count; i++) {
+				if (nonEmpty[i] > selectedContentSlot) {
+					chosen = nonEmpty[i];
+					break;
+				}
+			}
+			selectedContentSlot = chosen;
+		} else {
+			int chosen = nonEmpty[count - 1];
+			for (int i = count - 1; i >= 0; i--) {
+				if (nonEmpty[i] < selectedContentSlot) {
+					chosen = nonEmpty[i];
+					break;
+				}
+			}
+			selectedContentSlot = chosen;
+		}
 	}
 
 	// A snapshot of the held shulker's content stacks (for the peek overlay rendering).
