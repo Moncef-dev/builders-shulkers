@@ -1,4 +1,4 @@
-# Shulker Inventory
+# Builder's Shulkers
 
 A Fabric mod for Minecraft that lets you use a shulker box's contents without ever placing it
 down: open and rearrange it straight from your inventory like a chest, and place or use its

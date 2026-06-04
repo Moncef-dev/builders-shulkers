@@ -1,18 +1,18 @@
 {
 	"schemaVersion": 1,
-	"id": "shulker-inventory",
+	"id": "builders-shulkers",
 	"version": "${version}",
-	"name": "Shulker Inventory",
+	"name": "Builder's Shulkers",
 	"description": "Open and rearrange shulker box contents directly from your inventory, in a chest-style screen with a lid animation.",
 	"authors": [
 		"Moncef-dev"
 	],
 	"contact": {
-		"homepage": "https://github.com/Moncef-dev/shulker-inventory",
-		"sources": "https://github.com/Moncef-dev/shulker-inventory"
+		"homepage": "https://github.com/Moncef-dev/builders-shulkers",
+		"sources": "https://github.com/Moncef-dev/builders-shulkers"
 	},
 	"license": "MIT",
-	"icon": "assets/shulker-inventory/icon.png",
+	"icon": "assets/builders-shulkers/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
@@ -23,9 +23,9 @@
 		]
 	},
 	"mixins": [
-		"shulker-inventory.mixins.json",
+		"builders-shulkers.mixins.json",
 		{
-			"config": "shulker-inventory.client.mixins.json",
+			"config": "builders-shulkers.client.mixins.json",
 			"environment": "client"
 		}
 	],

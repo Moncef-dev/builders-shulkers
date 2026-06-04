@@ -13,7 +13,7 @@ import net.minecraft.resources.Identifier;
 // `playSound` lets a close be SILENT: when a session ends because the source shulker was disturbed (grabbed off
 // its slot), the box vanishes for viewers, so they should drain the animation state without a phantom close sound.
 public record RemoteShulkerAnimationPayload(long animationId, boolean opening, int holderEntityId, boolean playSound) implements CustomPacketPayload {
-	public static final Identifier ID = Identifier.fromNamespaceAndPath("shulker-inventory", "remote_shulker_animation");
+	public static final Identifier ID = Identifier.fromNamespaceAndPath("builders-shulkers", "remote_shulker_animation");
 	public static final Type<RemoteShulkerAnimationPayload> TYPE = new Type<>(ID);
 
 	public static final StreamCodec<ByteBuf, RemoteShulkerAnimationPayload> STREAM_CODEC = StreamCodec.composite(

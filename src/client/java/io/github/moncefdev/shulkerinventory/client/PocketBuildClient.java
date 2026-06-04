@@ -56,7 +56,7 @@ public final class PocketBuildClient {
 
 		// Peek overlay: draw the shulker contents grid right after the vanilla hotbar (shown while Ctrl is held).
 		HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR,
-				Identifier.fromNamespaceAndPath("shulker-inventory", "pocket_build_overlay"),
+				Identifier.fromNamespaceAndPath("builders-shulkers", "pocket_build_overlay"),
 				PocketBuildOverlay::render);
 
 		// Block the off-hand swap key (F) while the mode is active, before vanilla's keybind handling reads it.

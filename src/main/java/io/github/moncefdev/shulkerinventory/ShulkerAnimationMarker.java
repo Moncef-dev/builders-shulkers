@@ -11,7 +11,7 @@ import net.minecraft.world.item.component.CustomData;
 // client has, so non-mod clients can join, decode stacks that carry it, and simply ignore the extra NBT key.
 // Mod clients read the marker to drive the lid animation. The id is removed when the close animation finishes.
 public final class ShulkerAnimationMarker {
-	public static final String KEY = "shulker-inventory:animation_id";
+	public static final String KEY = "builders-shulkers:animation_id";
 
 	private ShulkerAnimationMarker() {}
 

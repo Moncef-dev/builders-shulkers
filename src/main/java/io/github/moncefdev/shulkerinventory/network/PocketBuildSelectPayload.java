@@ -9,7 +9,7 @@ import net.minecraft.resources.Identifier;
 // Client to server: while in Pocket-Build mode, the selected content slot changed (the player scrolled). Keeps the
 // server's selected slot in sync so a placement (a normal vanilla use packet) swaps in the right content.
 public record PocketBuildSelectPayload(int contentSlot) implements CustomPacketPayload {
-	public static final Identifier ID = Identifier.fromNamespaceAndPath("shulker-inventory", "pocket_build_select");
+	public static final Identifier ID = Identifier.fromNamespaceAndPath("builders-shulkers", "pocket_build_select");
 	public static final Type<PocketBuildSelectPayload> TYPE = new Type<>(ID);
 
 	public static final StreamCodec<ByteBuf, PocketBuildSelectPayload> STREAM_CODEC = StreamCodec.composite(

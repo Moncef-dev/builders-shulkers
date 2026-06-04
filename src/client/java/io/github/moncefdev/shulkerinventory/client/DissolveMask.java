@@ -19,7 +19,7 @@ public final class DissolveMask {
 	// Matches the old mask's resolution so the effective texel density over the lid's atlas sub-rectangle (and thus the
 	// grain of the dissolve) is unchanged: this keeps the procedural mask a like-for-like swap for the stored one.
 	private static final int SIZE = 512;
-	private static final Identifier ID = Identifier.fromNamespaceAndPath("shulker-inventory", "dissolve_mask_runtime");
+	private static final Identifier ID = Identifier.fromNamespaceAndPath("builders-shulkers", "dissolve_mask_runtime");
 	private static boolean built = false;
 
 	// The registered mask texture id, building and registering it on first use. Render-thread only (it touches the GL
@@ -34,7 +34,7 @@ public final class DissolveMask {
 				}
 			}
 			Minecraft.getInstance().getTextureManager()
-					.register(ID, new DynamicTexture(() -> "shulker-inventory dissolve mask", image));
+					.register(ID, new DynamicTexture(() -> "builders-shulkers dissolve mask", image));
 			built = true;
 		}
 		return ID;

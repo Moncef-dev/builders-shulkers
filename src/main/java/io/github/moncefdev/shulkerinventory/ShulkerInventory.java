@@ -20,7 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ShulkerInventory implements ModInitializer {
-	public static final String MOD_ID = "shulker-inventory";
+	public static final String MOD_ID = "builders-shulkers";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	@Override
@@ -147,6 +147,6 @@ public class ShulkerInventory implements ModInitializer {
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
 				PocketBuildServerState.exit(handler.player.getUUID()));
 
-		LOGGER.info("Shulker Inventory initialized");
+		LOGGER.info("Builder's Shulkers initialized");
 	}
 }

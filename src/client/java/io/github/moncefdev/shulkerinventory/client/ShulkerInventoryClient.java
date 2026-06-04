@@ -16,8 +16,8 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 	// ~1s after join, enough for Fabric to finish channel negotiation before we trust canSend.
 	private static final int SERVER_MOD_CHECK_DELAY_TICKS = 20;
 	private static final Component SERVER_MISSING_MOD_MESSAGE = Component.literal(
-			"Shulker Inventory: this server doesn't have the mod installed, so the features of the Shulker "
-					+ "Inventory mod will not work on the server. Both the server and your client need the mod "
+			"Builder's Shulkers: this server doesn't have the mod installed, so the features of the Builder's "
+					+ "Shulkers mod will not work on the server. Both the server and your client need the mod "
 					+ "installed to enable its functionality.");
 	// Ticks remaining before the deferred server-mod check; -1 means idle (no check pending).
 	private int ticksUntilServerModCheck = -1;

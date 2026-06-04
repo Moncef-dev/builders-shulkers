@@ -10,7 +10,7 @@ import net.minecraft.resources.Identifier;
 // player-inventory slot. animationId is allocated on the client and echoed back so the client
 // can drive the matching lid animation.
 public record OpenShulkerPayload(int slotIndex, long animationId) implements CustomPacketPayload {
-	public static final Identifier ID = Identifier.fromNamespaceAndPath("shulker-inventory", "open_shulker");
+	public static final Identifier ID = Identifier.fromNamespaceAndPath("builders-shulkers", "open_shulker");
 	public static final Type<OpenShulkerPayload> TYPE = new Type<>(ID);
 
 	public static final StreamCodec<ByteBuf, OpenShulkerPayload> STREAM_CODEC = StreamCodec.composite(

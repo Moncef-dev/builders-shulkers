@@ -12,7 +12,7 @@ import net.minecraft.resources.Identifier;
 // animates it, and broadcast the open/close to the players who can see the holder.
 public record PocketBuildModePayload(boolean entering, int hotbarSlot, long animationId, int contentSlot)
 		implements CustomPacketPayload {
-	public static final Identifier ID = Identifier.fromNamespaceAndPath("shulker-inventory", "pocket_build_mode");
+	public static final Identifier ID = Identifier.fromNamespaceAndPath("builders-shulkers", "pocket_build_mode");
 	public static final Type<PocketBuildModePayload> TYPE = new Type<>(ID);
 
 	public static final StreamCodec<ByteBuf, PocketBuildModePayload> STREAM_CODEC = StreamCodec.composite(
