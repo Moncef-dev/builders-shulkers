@@ -18,7 +18,6 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.BlockHitResult;
 import org.lwjgl.glfw.GLFW;
 
 // Pocket-Build: place a shulker's selected content from the hotbar, without ever placing the shulker.
@@ -27,7 +26,8 @@ import org.lwjgl.glfw.GLFW;
 // the shulker (works on a block, on air, or on an entity, so all three use events route through here). While in the
 // mode, a PLAIN right-click runs the vanilla use/interact flow on the SELECTED CONTENT (the content-swap mixins put
 // it briefly in hand), server-authoritative so nothing can be duplicated. The mouse wheel cycles the selected slot.
-// Ctrl + right-click again exits; so does opening a container, dropping the shulker, or moving the hotbar selection.
+// Ctrl + right-click again exits; so does opening a container, dropping the shulker, moving the hotbar selection,
+// dying, or a pick-block (middle-click).
 public final class PocketBuildClient {
 	private PocketBuildClient() {}
 
@@ -46,13 +46,13 @@ public final class PocketBuildClient {
 	}
 
 	public static void register() {
-		// A right-click aimed at a block fires UseBlockCallback (carries the target); one aimed at air fires
-		// UseItemCallback (no target). Route both through one handler; placement needs the block target.
-		UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> onRightClick(player, world, hand, hitResult));
-		UseItemCallback.EVENT.register((player, world, hand) -> onRightClick(player, world, hand, null));
-		// Right-clicking an ENTITY (e.g. an item frame) goes through neither callback above. Route it here too so the
-		// mode toggle is consistent: Ctrl + right-click always enters/exits Pocket-Build, never the entity action.
-		UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> onUseEntity(player, world, hand));
+		// A right-click routes through one of three use events depending on the target: a block fires UseBlockCallback,
+		// air fires UseItemCallback, an entity (e.g. an item frame) fires UseEntityCallback. All three feed the SAME
+		// toggle handler so Ctrl + right-click always enters/exits Pocket-Build, never the vanilla action; the target
+		// itself is unused here (a plain right-click is PASSed to vanilla, which carries its own target).
+		UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> handleUse(player, world, hand));
+		UseItemCallback.EVENT.register((player, world, hand) -> handleUse(player, world, hand));
+		UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> handleUse(player, world, hand));
 
 		// Peek overlay: draw the shulker contents grid right after the vanilla hotbar (shown while Ctrl is held).
 		HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR,
@@ -111,19 +111,21 @@ public final class PocketBuildClient {
 		});
 	}
 
-	private static InteractionResult onRightClick(Player player, Level world, InteractionHand hand, BlockHitResult hitResult) {
+	// The shared Pocket-Build toggle for every right-click (block, air, or entity). Ctrl + right-click enters the mode
+	// when a shulker is selected in the hotbar and every menu is closed (cancelling the vanilla place/interact), and
+	// exits it while active; a PLAIN right-click in the mode is PASSed so the vanilla use/interact flow runs - the
+	// content-swap mixins briefly put the SELECTED CONTENT in hand, so the whole vanilla flow (place / interact / sound /
+	// adventure / orientation, an entity action like placing into an item frame too) applies to the content, never the
+	// shulker. Entry needs a server that runs the mod, so the placement is validated server-authoritatively, never duped.
+	private static InteractionResult handleUse(Player player, Level world, InteractionHand hand) {
 		Minecraft mc = Minecraft.getInstance();
 		if (!world.isClientSide() || hand != InteractionHand.MAIN_HAND || player != mc.player) {
 			return InteractionResult.PASS;
 		}
-		ItemStack held = player.getMainHandItem();
-		boolean shulker = ShulkerContents.isShulker(held);
 		boolean ctrl = InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL);
 
 		if (PocketBuildMode.isActive()) {
-			// Ctrl + right-click exits the mode (and cancels the use). A PLAIN right-click is a placement: we PASS so
-			// vanilla runs it; MultiPlayerGameModeMixin briefly swaps the selected content into hand, so the whole
-			// vanilla flow (place / interact / sound / adventure / orientation) applies to the content, never the shulker.
+			// Ctrl + right-click exits the mode (and cancels the use); a plain right-click PASSes to the vanilla flow.
 			if (ctrl) {
 				if (rightClickReleased) {
 					exitMode();
@@ -136,36 +138,6 @@ public final class PocketBuildClient {
 
 		// Enter only on a fresh Ctrl + right-click with a shulker in hand, every menu closed, and a server that runs
 		// the mod (so it can validate the placement server-authoritatively). Otherwise leave vanilla alone.
-		if (ctrl && shulker && mc.screen == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {
-			if (rightClickReleased) {
-				enterMode(player, held);
-				rightClickReleased = false;
-			}
-			return InteractionResult.FAIL;
-		}
-		return InteractionResult.PASS;
-	}
-
-	private static InteractionResult onUseEntity(Player player, Level world, InteractionHand hand) {
-		Minecraft mc = Minecraft.getInstance();
-		if (!world.isClientSide() || hand != InteractionHand.MAIN_HAND || player != mc.player) {
-			return InteractionResult.PASS;
-		}
-		boolean ctrl = InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL);
-		if (PocketBuildMode.isActive()) {
-			// Ctrl + right-click exits (and cancels). A PLAIN right-click is a content interaction: PASS so vanilla
-			// runs it; the interact mixins briefly swap the selected content into hand, so the whole vanilla entity
-			// flow (e.g. placing the content into an item frame, its sound, survival-only consume) applies to the
-			// content, never the shulker.
-			if (ctrl) {
-				if (rightClickReleased) {
-					exitMode();
-					rightClickReleased = false;
-				}
-				return InteractionResult.FAIL;
-			}
-			return InteractionResult.PASS;
-		}
 		ItemStack held = player.getMainHandItem();
 		if (ctrl && ShulkerContents.isShulker(held)
 				&& mc.screen == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {

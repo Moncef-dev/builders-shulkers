@@ -64,6 +64,9 @@ public abstract class MultiPlayerGameModePickMixin {
 
 	// The server's tryPickItem condition: creative (infinite materials) always picks; otherwise the pick happens only
 	// when the player already holds a matching item somewhere in the inventory. Anything else is a no-op.
+	// RE-VERIFY against vanilla tryPickItem at each Minecraft update: this is a hand-copied condition, the one vanilla
+	// rule the mod re-implements rather than reuses. If vanilla adds a new way to pick and this copy still returns false,
+	// we would NOT exit while the server DOES change the slot - the locked-hotbar desync above silently returns.
 	private static boolean shulkerInventory$willPick(LocalPlayer player, ItemStack pick) {
 		if (player.hasInfiniteMaterials()) {
 			return true;
