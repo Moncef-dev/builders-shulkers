@@ -5,6 +5,7 @@ import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
+import io.github.moncefdev.shulkerinventory.network.PocketBuildRemoteContentPayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -30,6 +31,7 @@ public class ShulkerInventory implements ModInitializer {
 		PayloadTypeRegistry.serverboundPlay().register(PocketBuildSelectPayload.TYPE, PocketBuildSelectPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(OpenPlayerInventoryPayload.TYPE, OpenPlayerInventoryPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RemoteShulkerAnimationPayload.TYPE, RemoteShulkerAnimationPayload.STREAM_CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(PocketBuildRemoteContentPayload.TYPE, PocketBuildRemoteContentPayload.STREAM_CODEC);
 
 		// Open handler: validate the slot, toggle closed if this shulker is already open, otherwise copy the
 		// stack's CONTAINER component into a working container and open a vanilla shulker menu bound to it.
@@ -107,7 +109,11 @@ public class ShulkerInventory implements ModInitializer {
 				}
 				PocketBuildServerState.enter(player.getUUID(), payload.contentSlot());
 				ShulkerAnimationMarker.set(stack, payload.animationId());
+				// Open broadcast FIRST (it creates the mirror animation on viewers), then the content broadcast, so
+				// markPocketBuild / setPocketBuildContent land on an animation that already exists for them.
 				InventoryShulkerBoxMenu.broadcastAnimation(player, payload.animationId(), true, true);
+				InventoryShulkerBoxMenu.broadcastPocketBuildContent(player, payload.animationId(),
+						selectedContent(stack, payload.contentSlot()));
 			} else {
 				PocketBuildServerState.exit(player.getUUID());
 				InventoryShulkerBoxMenu.broadcastAnimation(player, payload.animationId(), false, true);
@@ -116,8 +122,21 @@ public class ShulkerInventory implements ModInitializer {
 
 		// Pocket-Build selection: keep the server's selected content slot in sync as the player scrolls, so a normal
 		// vanilla use-on packet swaps in the right content (handled by ServerPlayerGameModeMixin).
-		ServerPlayNetworking.registerGlobalReceiver(PocketBuildSelectPayload.TYPE, (payload, context) ->
-				PocketBuildServerState.select(context.player().getUUID(), payload.contentSlot()));
+		ServerPlayNetworking.registerGlobalReceiver(PocketBuildSelectPayload.TYPE, (payload, context) -> {
+			var player = context.player();
+			PocketBuildServerState.select(player.getUUID(), payload.contentSlot());
+			// Mirror the new selection to viewers, so the block drawn inside the held box updates as the player
+			// scrolls. The held slot is locked in the mode, so the main-hand stack is the Pocket-Build shulker and
+			// carries the animation id marker.
+			ItemStack held = player.getMainHandItem();
+			if (ShulkerContents.isShulker(held)) {
+				Long animationId = ShulkerAnimationMarker.get(held);
+				if (animationId != null) {
+					InventoryShulkerBoxMenu.broadcastPocketBuildContent(player, animationId,
+							selectedContent(held, payload.contentSlot()));
+				}
+			}
+		});
 
 		// Login cleanup. We deliberately never strip the animation_id marker DURING a session: an async strip that
 		// mutates an inventory or cursor stack mid-session emits a slot/cursor update that can collide with a
@@ -148,5 +167,15 @@ public class ShulkerInventory implements ModInitializer {
 				PocketBuildServerState.exit(handler.player.getUUID()));
 
 		LOGGER.info("Builder's Shulkers initialized");
+	}
+
+	// The Pocket-Build selected content (the shulker's content at the selected slot), or EMPTY if the slot is out of
+	// range (e.g. -1 when nothing is selected). EMPTY is a valid broadcast: the dissolve still applies for viewers,
+	// just with nothing drawn inside the box.
+	private static ItemStack selectedContent(ItemStack shulker, int contentSlot) {
+		if (contentSlot < 0 || contentSlot >= ShulkerContents.SIZE) {
+			return ItemStack.EMPTY;
+		}
+		return ShulkerContents.read(shulker).get(contentSlot);
 	}
 }

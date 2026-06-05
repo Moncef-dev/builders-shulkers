@@ -2,6 +2,7 @@ package io.github.moncefdev.shulkerinventory.client;
 
 import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
+import io.github.moncefdev.shulkerinventory.network.PocketBuildRemoteContentPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -50,6 +51,17 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 				if (payload.playSound()) {
 					playRemoteSound(context.client(), payload.holderEntityId(), payload.opening());
 				}
+			});
+		});
+
+		// Mirror another player's Pocket-Build content: draw their selected block inside the held box and dissolve its
+		// lid, matching what the holder sees, instead of only the plain lid animation. Broadcast by the server on enter
+		// and on every scroll. markPocketBuild / setPocketBuildContent are no-ops until the mirror animation exists, but
+		// the server sends the open broadcast (which creates it) before this, so by now it does.
+		ClientPlayNetworking.registerGlobalReceiver(PocketBuildRemoteContentPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> {
+				ClientShulkerSession.markPocketBuild(payload.animationId());
+				ClientShulkerSession.setPocketBuildContent(payload.animationId(), payload.content());
 			});
 		});
 

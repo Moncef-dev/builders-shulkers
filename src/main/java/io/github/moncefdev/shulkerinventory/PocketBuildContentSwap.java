@@ -1,6 +1,8 @@
 package io.github.moncefdev.shulkerinventory;
 
+import io.github.moncefdev.shulkerinventory.menu.InventoryShulkerBoxMenu;
 import net.minecraft.core.NonNullList;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -47,6 +49,16 @@ public final class PocketBuildContentSwap {
 			if (slot >= 0 && swap) {
 				items.set(slot, afterUse);
 				ShulkerContents.write(shulker, items);
+				// Cosmetic (separate from the anti-dup write-back above): the selected slot just changed (decremented or
+				// emptied by the placement), and viewers have no per-tick refresh like the holder does, so push the new
+				// content to them. The block drawn inside another player's held box now updates as they build, and the box
+				// renders empty once the last item of the selection is placed.
+				if (player instanceof ServerPlayer serverPlayer) {
+					Long animationId = ShulkerAnimationMarker.get(shulker);
+					if (animationId != null) {
+						InventoryShulkerBoxMenu.broadcastPocketBuildContent(serverPlayer, animationId, afterUse);
+					}
+				}
 			}
 		}
 	}

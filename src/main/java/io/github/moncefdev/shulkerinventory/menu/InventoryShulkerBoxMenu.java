@@ -3,6 +3,7 @@ package io.github.moncefdev.shulkerinventory.menu;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.ShulkerInventory;
 import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
+import io.github.moncefdev.shulkerinventory.network.PocketBuildRemoteContentPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -52,6 +53,20 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 			// ready to receive it (a just-joined player mid-handshake), which would otherwise error the send and
 			// disconnect that viewer.
 			if (viewer != holder && ServerPlayNetworking.canSend(viewer, RemoteShulkerAnimationPayload.TYPE)) {
+				ServerPlayNetworking.send(viewer, payload);
+			}
+		}
+	}
+
+	// Mirror the Pocket-Build selected content (drawn inside the held box) to the OTHER players who can see the holder,
+	// so they get the dissolving lid + the block inside, matching what the holder sees, instead of just the plain lid
+	// animation. Sent on enter and on every scroll. Cosmetic; the holder draws its own content locally and is excluded,
+	// and in singleplayer there are no other tracking players so this is a no-op. Skips viewers without the channel
+	// (vanilla clients, or one still mid-handshake), exactly like broadcastAnimation.
+	public static void broadcastPocketBuildContent(ServerPlayer holder, long animationId, ItemStack content) {
+		PocketBuildRemoteContentPayload payload = new PocketBuildRemoteContentPayload(animationId, holder.getId(), content);
+		for (ServerPlayer viewer : PlayerLookup.tracking(holder)) {
+			if (viewer != holder && ServerPlayNetworking.canSend(viewer, PocketBuildRemoteContentPayload.TYPE)) {
 				ServerPlayNetworking.send(viewer, payload);
 			}
 		}
