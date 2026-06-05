@@ -2,6 +2,8 @@ package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import io.github.moncefdev.shulkerinventory.client.PocketBuildClient;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildMode;
+import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
@@ -14,6 +16,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+// In Pocket-Build, middle-click FIRST tries to select a matching item from the held shulker (priority 1, 1.1.2): if the
+// picked block/entity item is already in the box (same item + components, first slot, like vanilla findSlotMatchingItem),
+// that slot is selected (synced like a scroll) and the vanilla pick is cancelled, so you stay in the mode. Only if it is
+// NOT in the box does the original exit-and-pick behaviour below run (priority 2: take it from the inventory; 3: no-op).
+//
 // Pick-block (middle-click) is server-authoritative: the client sends a pick packet and the SERVER finds/creates the
 // item, drops it in a hotbar slot, and CHANGES the selected slot to that slot (Inventory.addAndPickItem ->
 // setSelectedSlot(getSuitableHotbarSlot())). In Pocket-Build mode the local hotbar selection is LOCKED
@@ -29,7 +36,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // item) changes nothing server-side, so it must leave the mode untouched.
 @Mixin(MultiPlayerGameMode.class)
 public abstract class MultiPlayerGameModePickMixin {
-	@Inject(method = "handlePickItemFromBlock", at = @At("HEAD"))
+	@Inject(method = "handlePickItemFromBlock", at = @At("HEAD"), cancellable = true)
 	private void shulkerInventory$exitOnPickBlock(BlockPos pos, boolean includeData, CallbackInfo ci) {
 		if (!PocketBuildMode.isActive()) {
 			return;
@@ -43,12 +50,19 @@ public abstract class MultiPlayerGameModePickMixin {
 		// Mirror the server: includeData is forced off unless the player has infinite materials (creative).
 		boolean serverIncludeData = player.hasInfiniteMaterials() && includeData;
 		ItemStack pick = level.getBlockState(pos).getCloneItemStack(level, pos, serverIncludeData);
+		// Priority 1: the picked block is already in the held shulker -> select that slot, stay in the mode, cancel the
+		// vanilla pick (no hotbar change, no desync).
+		if (shulkerInventory$pickIntoShulker(player, pick)) {
+			ci.cancel();
+			return;
+		}
+		// Priority 2/3: leave the mode and let the vanilla pick run (take a matching item from the inventory, or no-op).
 		if (shulkerInventory$willPick(player, pick)) {
 			PocketBuildClient.exitMode();
 		}
 	}
 
-	@Inject(method = "handlePickItemFromEntity", at = @At("HEAD"))
+	@Inject(method = "handlePickItemFromEntity", at = @At("HEAD"), cancellable = true)
 	private void shulkerInventory$exitOnPickEntity(Entity entity, boolean includeData, CallbackInfo ci) {
 		if (!PocketBuildMode.isActive()) {
 			return;
@@ -57,9 +71,27 @@ public abstract class MultiPlayerGameModePickMixin {
 		if (player == null) {
 			return;
 		}
-		if (shulkerInventory$willPick(player, entity.getPickResult())) {
+		ItemStack pick = entity.getPickResult();
+		if (shulkerInventory$pickIntoShulker(player, pick)) {
+			ci.cancel();
+			return;
+		}
+		if (shulkerInventory$willPick(player, pick)) {
 			PocketBuildClient.exitMode();
 		}
+	}
+
+	// Priority 1 of the Pocket-Build pick-block: if the picked item is already in the held shulker, select that slot
+	// (synced to the server like a scroll), and report it handled so the caller cancels the vanilla pick and stays in the
+	// mode. The in-box content render follows on the next client tick. Returns false if the item is not in the box.
+	private static boolean shulkerInventory$pickIntoShulker(LocalPlayer player, ItemStack pick) {
+		if (!PocketBuildMode.selectMatchingSlot(player.getMainHandItem(), pick)) {
+			return false;
+		}
+		if (ClientPlayNetworking.canSend(PocketBuildSelectPayload.TYPE)) {
+			ClientPlayNetworking.send(new PocketBuildSelectPayload(PocketBuildMode.selectedContentSlot()));
+		}
+		return true;
 	}
 
 	// The server's tryPickItem condition: creative (infinite materials) always picks; otherwise the pick happens only

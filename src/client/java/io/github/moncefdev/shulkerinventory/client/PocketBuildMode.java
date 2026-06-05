@@ -112,6 +112,24 @@ public final class PocketBuildMode {
 		return readContents(shulker).get(selectedContentSlot);
 	}
 
+	// Select the FIRST content slot holding an item that matches `pick` (same item + components, exactly the criterion
+	// and first-match order vanilla's Inventory.findSlotMatchingItem uses for the inventory pick-block), and return true;
+	// or leave the selection unchanged and return false if none matches. Used by the Pocket-Build pick-block, so
+	// middle-clicking a block you already have in the box selects it instead of leaving the mode.
+	public static boolean selectMatchingSlot(ItemStack shulker, ItemStack pick) {
+		if (pick == null || pick.isEmpty()) {
+			return false;
+		}
+		NonNullList<ItemStack> items = readContents(shulker);
+		for (int i = 0; i < ShulkerContents.SIZE; i++) {
+			if (ItemStack.isSameItemSameComponents(items.get(i), pick)) {
+				selectedContentSlot = i;
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static NonNullList<ItemStack> readContents(ItemStack shulker) {
 		return ShulkerContents.read(shulker);
 	}

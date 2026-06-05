@@ -476,6 +476,22 @@ position and scaled to 0.8 about its RIGHT EDGE (via the `GuiGraphicsExtractor.p
 touch smaller while staying right-aligned: scaling about the centre would push a 1-digit count further right than a
 2-digit one. Shown only when the count is > 1, like vanilla.
 
+### Pick-block selects from the box first (1.1.2)
+
+In Pocket-Build, middle-click (pick-block) tries the held shulker BEFORE the inventory. `MultiPlayerGameModePickMixin`
+computes the picked item exactly like vanilla (`getCloneItemStack` for a block, `getPickResult` for an entity), then:
+- Priority 1: if a content slot matches it, SELECT that slot and cancel the vanilla pick, staying in the mode. The match
+  is `ItemStack.isSameItemSameComponents` on the FIRST matching slot - the exact criterion and order vanilla's
+  `Inventory.findSlotMatchingItem` uses for the inventory pick-block (so a renamed block / a specific banner / a player
+  head only matches its exact self, and Ctrl + pick, which puts data into the picked item, matches accordingly). The
+  selection is synced to the server with `PocketBuildSelectPayload`, like a scroll; the in-box render follows next tick.
+- Priority 2 (unchanged): not in the box but IN the inventory (or creative) -> leave the mode and let the vanilla pick
+  take it (server-authoritative).
+- Priority 3 (unchanged): nowhere at all -> STAY in the mode and do nothing. The vanilla pick is a no-op, so there is no
+  slot change to desync. Leaving the mode stays gated on the pick actually happening (`willPick`), exactly as before.
+
+The box selection is purely client-side state (no item moves), so there is no duplication concern.
+
 ## 9. Compatibility notes for other mod authors
 
 This mod is built to be a good vanilla citizen, but it relies on a few vanilla contracts. If
