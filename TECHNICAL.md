@@ -1,7 +1,7 @@
-# Shulker Inventory - Technical Documentation (v1.1.0)
+# Builder's Shulkers - Technical Documentation (v1.1.1)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.1.0.
+their scope, and known risks. Describes the state as shipped in v1.1.1.
 
 ## Environment
 
@@ -42,6 +42,10 @@ SWAP onto that slot). The sequence is always: save -> close the session -> repla
 action on the inventory menu. The save happens BEFORE the action, so the up-to-date stack is
 what gets picked up or relocated.
 
+- Exception (vanilla parity): a drop (`THROW`) on the source slot with a NON-EMPTY cursor is NOT treated as a
+  disturbance. Vanilla's `THROW` only drops from the hovered slot when the cursor is empty
+  (`AbstractContainerMenu.doClick`, guarded by `getCarried().isEmpty()`), so with a full cursor it is a no-op; the
+  click falls through to vanilla and the session stays open instead of closing pointlessly.
 - Why it is dup-safe: shulker boxes are non-stackable in vanilla (size 1, empty or filled), so there is no half-stack
   ambiguity, and the contents always travel with the (already-saved) stack.
 - `ServerContainerCloseMixin` cancels container-close packets whose id does not match the
@@ -72,7 +76,7 @@ keyed by a per-shulker identity, never by the slot.
 
 Minecraft items are value objects: an `ItemStack` has no per-instance unique id; equality is
 by (item, components). To track one specific shulker, the mod adds a synthetic identity: the
-`shulker-inventory:animation_id` data component (a `long`). It is allocated client-side at open as a
+`builders-shulkers:animation_id` data component (a `long`). It is allocated client-side at open as a
 globally-unique random long, stamped on the source stack server-side, and network-synchronized so the
 client renderer can recognize the animating stack wherever it is drawn (GUI, hand, dropped entity).
 
@@ -109,24 +113,40 @@ local player's own first-person hand. Each shulker is animated only by its own m
 there is no broad fallback (so the local player's animation can never bleed onto an unrelated held shulker).
 
 Shared animation (multiplayer). The animation state machine is per-client, so by default only the player who
-opened a shulker sees its lid move. To make the lid visible on a shulker HELD by another player, the server
-broadcasts open/close events (`RemoteShulkerAnimationPayload`) to the players who can see the holder, and those
-clients run the same animation locally (`startOpeningRemote` / `startClosing`). The broadcast is gated on
-`ServerPlayNetworking.canSend` per viewer, so it is never sent to a vanilla client (no mod) or to a viewer that
-is mid-join (which would otherwise error the send). The initiator animates locally and is excluded; in
-singleplayer there are no other viewers, so the broadcast is a no-op and solo behavior is unchanged. A close
-that ends because the source shulker was disturbed (grabbed off its slot) is broadcast SILENTLY: the box has
-vanished for viewers, so they drain the animation state without a phantom close sound, while a normal close
-(toggle or Escape) keeps the sound.
+opened a shulker sees its lid move. To make it visible on a shulker HELD by another player, the server broadcasts
+open/close events (`RemoteShulkerAnimationPayload`) to the players who can see the holder, and those clients run the
+same animation locally (`startOpeningRemote` / `startClosing`). The broadcast is gated on `ServerPlayNetworking.canSend`
+per viewer, so it is never sent to a vanilla client (no mod) or to a viewer that is mid-join. The initiator animates
+locally and is excluded; in singleplayer there are no other viewers, so it is a no-op and solo behavior is unchanged.
+
+The animation is broadcast ALWAYS, not only when the box is held at the start: a viewer must hold the state so the lid
+is right whenever the box becomes visible (moved to the hotbar, or dropped) part-way through. The SOUND, by contrast,
+is gated on VISIBILITY at the event, since it accompanies that instant. An open plays the sound only when the box is
+already held. A close plays it when the box is still held OR was just dropped to the world (a visible item entity,
+detected by a `ContainerInput.THROW` on the source slot); a grab/swap that moves the box to the cursor or another slot
+(invisible to viewers) stays silent. `startOpeningRemote` also RESUMES from the previous animation's openness (tracked
+per holder), so a quick re-open continues from where the closing lid was for viewers too, matching the opener
+(`beginHeldOpening`). That per-holder tracking also bounds viewer state to one live animation per holder (a new open
+drains the holder's previous one) and is cleared on disconnect, so off-view or out-of-hand opens cannot accumulate
+orphaned states.
+
+Per-animation lid model (multiplayer). The vanilla `ShulkerBoxModel` is shared per colour and its lid position is
+resolved at DRAW, so in the batched world render (held items) the LAST `setupAnim` of the frame wins: a second held
+shulker of the same colour, even a static one, would reset an animated box's lid to closed at draw (the dissolve,
+captured at submit, would still play, making it obvious). So an ANIMATED box is given its OWN `ShulkerBoxModel`
+instance, keyed by animation id and cached on the `AnimationState` (freed when it drains); two animated same-colour
+boxes still get distinct models, and static boxes keep the shared vanilla model. The GUI draws each slot immediately
+(no batching) and placed shulkers use a different renderer instance, so neither is affected. The same per-instance
+technique keeps a NESTED content shulker's lid static (`separateNestedShulkerModel`, keyed by sprite).
 
 ## 5. Mixins and injection points
 
-Server (`shulker-inventory.mixins.json`):
+Server (`builders-shulkers.mixins.json`):
 - `ServerContainerCloseMixin` -> `ServerGamePacketListenerImpl.handleContainerClose` (HEAD,
   cancellable): drops stale close packets during a menu swap, scoped to our own menu (never affects
   other mods' containers).
 
-Client (`shulker-inventory.client.mixins.json`):
+Client (`builders-shulkers.client.mixins.json`):
 - `ShulkerSlotClickMixin` / `ShulkerCreativeSlotClickMixin` -> `slotClicked` (HEAD, cancellable):
   route a right-click on a shulker to the open handler. The interception is gated on
   `ClientPlayNetworking.canSend(OpenShulkerPayload.TYPE)`: on a server that does not run the mod the
@@ -158,12 +178,17 @@ Client (`shulker-inventory.client.mixins.json`):
 
 - `OpenShulkerPayload` (C2S): slot index + animation id (request to open, or toggle closed).
 - `OpenPlayerInventoryPayload` (S2C): reopen the player's inventory screen after a session ends.
-- `RemoteShulkerAnimationPayload` (S2C, broadcast): mirror a lid animation (open or close) to the players who
-  can see the holder, so the lid is visible on the shulker held by another player. Gated by `canSend` per viewer.
-  Carries the holder entity id (a mirrored sound plays at the holder's position) and a `playSound` flag (a close
-  caused by disturbing the source shulker is sent silent, so viewers drain the animation without a phantom sound).
+- `RemoteShulkerAnimationPayload` (S2C, broadcast): mirror a lid animation (open or close) to the players who can
+  see the holder, so the lid is visible on the shulker held by another player. Gated by `canSend` per viewer. Carries
+  the holder entity id (a mirrored sound plays at the holder's position) and a `playSound` flag, set from VISIBILITY at
+  the event (open: held; close: held or dropped to the world), so a close that only moved the box to the cursor or
+  another slot is sent silent (the box is invisible to viewers) while a drop keeps its sound.
+- `PocketBuildRemoteContentPayload` (S2C, broadcast): the Pocket-Build selected stack to draw inside a held box for
+  viewers (animation id, holder entity id, `ItemStack`), so they see the dissolving lid and the block inside it, not
+  just the plain lid. Sent on enter, on every scroll, and after each placement, so the block updates as the holder
+  builds and renders empty once a slot's last item is placed. Gated by `canSend` per viewer.
 
-## 7. Known limitations and risks (v1.1.0)
+## 7. Known limitations and risks (v1.1.1)
 
 - Component-equality divergence (observed, not just theoretical). While `animation_id` is present,
   the shulker is not equal by components to an otherwise identical stack without it. This is a real
@@ -234,6 +259,14 @@ server-authoritative, so nothing can be duplicated.
   vanilla hotbar scroll); `InventorySelectedSlotMixin` blocks the number-key slot change, scoped to the local player;
   the off-hand swap key (F) is drained each client tick. The selection is synced to the server with
   `PocketBuildSelectPayload`.
+- Exit conditions. The mode ends on: Ctrl + right-click again; opening any container UI; the held item ceasing to be a
+  shulker (dropped, cleared, replaced); the hotbar selection moving off the source slot; or the player dying
+  (`isDeadOrDying`, so a keepInventory death - which neither drops the shulker nor opens a container - cannot leave the
+  mode stuck through respawn). The pause menu, options and chat deliberately leave the mode running. Pick-block is a
+  special case: it is server-authoritative (the server moves the picked item into a hotbar slot and changes the selected
+  slot, which the locked hotbar cannot follow, desyncing the inventory), so `MultiPlayerGameModePickMixin` exits the
+  mode at the head of `handlePickItemFromBlock` / `handlePickItemFromEntity`, before the pick runs - which then proceeds
+  vanilla and unlocked.
 - Animation. Entering and leaving the mode reuse the inventory-open machinery (sections 3-4): the client begins the
   lid animation via the shared `ClientShulkerSession.beginHeldOpening`, which resumes from the shulker's current
   openness on a quick re-enter; the server stamps the `animation_id` marker and broadcasts open/close, so the held
@@ -253,7 +286,11 @@ server-authoritative, so nothing can be duplicated.
 
 Pocket-Build only acts on BLOCK items: a non-block selection (a tool, a bucket, a boat, a spawn egg, ...) does nothing
 on right-click. `PocketBuildRules.isUsable` is the single gate, checked by both the server content-swap and the client
-prediction.
+prediction. For a non-usable (or empty) selection the swap puts an EMPTY hand in place and STILL runs the vanilla flow
+rather than cancelling it: nothing is placed or used (the shulker, kept aside until the finally, is never placed), but
+the bare interaction is not swallowed - Ctrl + right-click can still leave the mode and a chest still opens - and the
+content slot is left untouched (no write-back). Cancelling the flow instead (an early FAIL) ate the exit click and the
+chest interaction whenever a non-usable item was selected.
 
 - Why: Pocket-Build is a pocket of placeable BLOCKS, not a tool/interaction handler. Without the gate, running every
   item through vanilla's use-on flow meant a tool used from the box performed its right-click action (a shovel made a
@@ -276,11 +313,13 @@ prediction.
 ### Content rendering: the selected content inside the box (1.1.1)
 
 The held shulker draws its selected content inside the box, in every render context (inventory slot, first person,
-third person), so the player sees what they are about to place. The content is composed into the shulker's OWN item
+third person, and dropped on the ground), so the player sees what they are about to place. The content is composed into the shulker's OWN item
 render state, the vanilla bundle technique: `PocketBuildContentLayerMixin` (`@Inject` at the tail of
 `ItemModelResolver.appendItemLayers`) appends the content's layers to that render state and shrinks them inside the box.
 One render state means the content shares the box's depth, so it is occluded by the box geometry through the depth test
-(it reads as sitting INSIDE the box), with no second pass and no ordering tricks.
+(it reads as sitting INSIDE the box), with no second pass and no ordering tricks. Other players see the same in-box
+content: the holder's selected stack is broadcast to viewers (`PocketBuildRemoteContentPayload`, see sections 4 and 6),
+which draw it the same way inside the held box and dissolve its lid, updating as the holder scrolls or places.
 
 Classified by HOW it renders, not by item type, all by inherent render signals (no hard-coded item list), cached per
 item in `PocketBuildContentRender`:
@@ -308,7 +347,8 @@ display (big/small dripleaf), and a special-renderer block (statue, chest, condu
 pot) - takes ONE path: appended with the GUI (inventory) display, turned to follow the box, shrunk, and re-centred.
 
 - Orientation - follow the box (`boxGuiRef` + a rotation delta). The content is appended with the GUI display, which is
-  correct in the slot for every block. In held views the box turns to its held display; the content must turn WITH it.
+  correct in the slot for every block. In held and dropped (on-the-ground) views the box turns to a non-GUI display, so
+  the content must turn WITH it.
   Applied per layer: `delta = boxRot(context) * boxRot(gui)^-1` (the rotation the box itself undergoes from its GUI
   display to this context), pre-multiplied onto the layer's own GUI rotation (composed in quaternions, re-expressed as
   Euler XYZ to match `ItemTransform`). So the content keeps its correct inventory orientation and merely follows the
@@ -321,22 +361,28 @@ pot) - takes ONE path: appended with the GUI (inventory) display, turned to foll
   localTransform there, but a special block-entity renderer keeps its model-fitting transform there - the entity-model
   Y-flip and scaling, and a bed's separate HEAD/FOOT placement - so composing preserves it; substituting it dropped the
   fit and left a statue upside down or a bed reduced to a single piece.
-- Size - 0.6x the content's OWN natural footprint, tracked across views. Measured from the content's fitted extents and
-  capped so a block larger than the box shrinks further to fit (`0.6 * min(1, box/content)`), which keeps natural
-  proportions: a conduit (model ~0.6 of a full block) stays small, a chest stays chest-sized, instead of all being
-  inflated to one box-fraction. Because the content is appended GUI-scaled (constant) while the box shrinks in held
-  views, the content's scale is also multiplied by the box's OWN shrink factor (`boxScale-now / boxScale-gui`, from
-  `boxGuiRef`) - a single scalar that keeps each item's proportions intact and makes the in-box size ratio the same in
-  the slot and in hand. Scope: all non-flat content.
+- Size - a CONSTANT 0.6x of the content's OWN natural footprint (no box-relative cap). Uniform, so two blocks with the
+  same body render at the same height, just as the vanilla slot uses one fixed GUI scale for every block: a conduit
+  (model ~0.6 of a full block) stays small and a chest stays chest-sized, instead of being inflated to fill the box. An
+  earlier version scaled to 0.6 OF THE BOX (`0.6 * box/content`) and then added a `min(1, box/content)` cap to undo the
+  resulting inflation - but the cap over-shrank any block whose bbox merely exceeds the box on one thin axis (a
+  calibrated_sculk_sensor's amethyst horn), breaking the same-height match; the constant 0.6x needs no cap (even the
+  largest content still sits inside the box). Because the content is appended GUI-scaled (constant) while the box shrinks
+  in held and dropped views, its scale is also multiplied by the box's OWN shrink factor (`boxScale-now / boxScale-gui`, from
+  `boxGuiRef`) - a single scalar that keeps each item's proportions and makes the in-box size ratio the same in the slot
+  and in hand. Scope: all non-flat content.
 - Oversized-flat block (the decorated pot, the one type test above). Its GUI layer is flat and straight, so the
   standard block iso rotation (`boxGuiRef`'s GUI rotation) is substituted onto it before the delta, giving it the 3D
   inventory look; it then follows the box and shrinks like the others. Scope: a BlockItem with a special renderer that
   reports flat.
-- Centre offset (all axes). The offset (box centre - content centre, read from the layers' transformed extents) is
-  added to the block's display-transform translation, shifting the content in the shared space onto the box centre
-  whatever the pose is. For a cube-filling block the offset is ~0, so those blocks are untouched; an off-centre model
-  (mob head, conduit, statue, bed, dripleaf, end rod) or a thin block (carpet, pressure plate) lifted out the top by
-  its vanilla first-person hold is pulled to the centre.
+- Centre offset - horizontal always, height in held and dropped only. The offset (box centre - content centre, read from
+  the layers' transformed extents) is added to the block's display-transform translation, shifting the content in the
+  shared space onto the box centre. X and Z (horizontal) are centred in EVERY view, so the content stays inside the box
+  and does not drift toward the hand. The HEIGHT (Y) is centred in HELD and DROPPED views: there the box is posed
+  (tilted) and the full three-axis centre is what keeps the content contained (dropping Y there also skews the apparent
+  X/Z under the pose rotation). In the upright GUI slot the height is NOT centred, so the block keeps its natural height -
+  a slab rests on the box floor instead of being lifted to the vertical centre, and a calibrated_sculk_sensor keeps its
+  own height. For a cube-filling block the horizontal offset is ~0, so it is untouched.
 
 **The flat (2D) path** (tools, the shield, flat blocks like saplings). Drawn with its GUI model, its own display
 transform dropped to `NO_TRANSFORM` (a flat sprite's GUI transform has no rotation, so dropping it keeps the
