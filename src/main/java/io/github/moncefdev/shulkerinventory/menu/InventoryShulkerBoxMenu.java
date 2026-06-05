@@ -130,7 +130,12 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		// Commit-on-disturbance (anti-dup): if the action targets the source shulker stack itself, save the
 		// worked contents into it, end the session, then replay the action on the inventory menu. Saving always
 		// happens before the move, so the up-to-date stack is what gets picked up or relocated.
-		if (touchesSourceSlot(slotId, button, input)) {
+		// Exception: a drop (THROW) on the source slot while the cursor is NON-EMPTY is a vanilla no-op (the drop key
+		// only drops from the hovered slot when the cursor is empty - verified in AbstractContainerMenu.doClick), so it
+		// does not disturb the source. Let it fall through to vanilla (which does nothing) instead of pointlessly
+		// closing the session.
+		boolean noOpDrop = input == ContainerInput.THROW && !getCarried().isEmpty();
+		if (touchesSourceSlot(slotId, button, input) && !noOpDrop) {
 			disturbed = true;
 			// A THROW on the source slot (drop key) sends the box to the world as a visible item; a PICKUP/SWAP sends it
 			// to the cursor or another slot. Only the drop keeps the close sound for viewers (see removed()).
