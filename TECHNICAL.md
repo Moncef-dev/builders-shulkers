@@ -461,6 +461,21 @@ composed inside the box.
   the render side channel, so placed shulker blocks and other shulkers are never touched. A shulker drawn INSIDE the
   box as content is also excluded (the content-layer flag, see Section 8): it keeps an opaque, un-dissolved lid.
 
+### Selected content count on the hotbar slot (1.1.2)
+
+In Pocket-Build the held shulker's hotbar slot shows the COUNT of the SELECTED CONTENT (how many of the block you are
+about to place you have), like a normal hotbar item, instead of the shulker's own count. `GuiSelectedContentDecorationsMixin`
+redirects the `GuiGraphicsExtractor.itemDecorations` call in `Gui.extractSlot` (symmetrically to how
+`GuiSelectedItemNameMixin` redirects the name popup). The held Pocket-Build shulker is identified by its `animation_id`
+marker matching the active session, so another shulker in the hotbar is unaffected. The slot ICON is drawn earlier and
+separately, so it is left untouched (it stays the shulker with the content rendered inside).
+
+Only the count is drawn, NOT the full decorations: Pocket-Build places BLOCKS only (the full-use gamerule does not exist
+yet), so the durability bar and cooldown overlay have no meaning here. The count is drawn right-aligned at the vanilla
+position and scaled to 0.8 about its RIGHT EDGE (via the `GuiGraphicsExtractor.pose()` `Matrix3x2fStack`), so it reads a
+touch smaller while staying right-aligned: scaling about the centre would push a 1-digit count further right than a
+2-digit one. Shown only when the count is > 1, like vanilla.
+
 ## 9. Compatibility notes for other mod authors
 
 This mod is built to be a good vanilla citizen, but it relies on a few vanilla contracts. If

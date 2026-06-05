@@ -29,7 +29,8 @@
 		"MultiPlayerGameModeMixin",
 		"MultiPlayerGameModeInteractMixin",
 		"MultiPlayerGameModePickMixin",
-		"GuiSelectedItemNameMixin"
+		"GuiSelectedItemNameMixin",
+		"GuiSelectedContentDecorationsMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
