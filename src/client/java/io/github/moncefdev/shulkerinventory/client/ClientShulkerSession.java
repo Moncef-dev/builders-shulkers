@@ -3,6 +3,7 @@ package io.github.moncefdev.shulkerinventory.client;
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.special.ShulkerBoxSpecialRenderer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -15,6 +16,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 
 // Client-side state for shulker lid animations. Allocates a unique id per open request, tracks each animation
 // through OPENING -> OPENED -> CLOSING, and exposes the "currently rendering" id to the render mixins via the
@@ -36,11 +38,23 @@ public final class ClientShulkerSession {
 		// which must happen for the whole Pocket-Build open even when the selected slot is empty (no content to draw):
 		// gating the dissolve on the content would leave the lid opaque on an empty selection.
 		boolean pocketBuild = false;
+		// A model instance unique to THIS animation (lazily created on first render), so the animated box's lid is not
+		// mutualised with another same-colour shulker rendered in the same frame. The shulker model is shared per colour
+		// and its lid position is resolved at DRAW, so the last setupAnim of the frame wins: a second held shulker of the
+		// same colour (even static, openness 0) would otherwise reset this box's lid to closed at draw. Lives on the
+		// animation, so it is freed with it when it drains - no separate cleanup.
+		ShulkerBoxSpecialRenderer separatedBoxRenderer = null;
 	}
 
 	public record AnimationMarker(long animationId) {}
 
 	private static final Map<Long, AnimationState> animations = new HashMap<>();
+	// The animation currently broadcast for each holder entity (REMOTE animations only). A holder has at most one held
+	// shulker, hence at most one live animation: when a new open arrives for a holder, its previous animation is drained
+	// here. Without this, a holder repeatedly opening then moving the shulker out of hand (whose close is held-gated and
+	// may never reach this viewer) would leak one orphaned AnimationState - and its per-id box model - per cycle, an
+	// abuse vector. Cleared on disconnect with the rest.
+	private static final Map<Integer, Long> holderToAnim = new HashMap<>();
 	private static final WeakHashMap<Screen, Long> screenIdMap = new WeakHashMap<>();
 	private static Long pendingIdForScreen = null;
 	// A pending open waits at most this many ticks for a shulker screen to claim it; if none does (e.g. a
@@ -110,7 +124,14 @@ public final class ClientShulkerSession {
 	// Starts an animation that mirrors another player's shulker (driven by a server broadcast), with NO pending
 	// screen: this client has no shulker screen for it, so it must not arm the orphan-cleanup that startOpening
 	// uses to drop a local open that no screen claimed.
-	public static void startOpeningRemote(long animationId) {
+	public static void startOpeningRemote(long animationId, int holderEntityId) {
+		// One held shulker per holder means one live animation: drain this holder's previous one if any. A leftover is an
+		// orphan (e.g. an earlier open whose held-gated close never reached this viewer), so replacing it here bounds the
+		// per-holder state to one and removes the open/move-out-of-hand spam as a memory-leak vector.
+		Long previous = holderToAnim.put(holderEntityId, animationId);
+		if (previous != null && previous != animationId) {
+			animations.remove(previous);
+		}
 		AnimationState anim = animations.computeIfAbsent(animationId, k -> new AnimationState());
 		anim.status = AnimationStatus.OPENING;
 	}
@@ -266,5 +287,26 @@ public final class ClientShulkerSession {
 	public static boolean isPocketBuild(long animationId) {
 		AnimationState anim = animations.get(animationId);
 		return anim != null && anim.pocketBuild;
+	}
+
+	// The model instance unique to this animation, lazily created via the factory on first render and cached on the
+	// AnimationState. Returns null if the animation no longer exists (then the layer keeps the shared vanilla model).
+	// See AnimationState.separatedBoxRenderer for why the per-id model is needed.
+	public static ShulkerBoxSpecialRenderer separatedBoxRenderer(long animationId, Supplier<ShulkerBoxSpecialRenderer> factory) {
+		AnimationState anim = animations.get(animationId);
+		if (anim == null) {
+			return null;
+		}
+		if (anim.separatedBoxRenderer == null) {
+			anim.separatedBoxRenderer = factory.get();
+		}
+		return anim.separatedBoxRenderer;
+	}
+
+	// Drop all client animation state. Called on disconnect / world change so orphaned animations (a holder whose
+	// held-gated close never arrived, then left view) and their per-id box models never accumulate across sessions.
+	public static void clearAll() {
+		animations.clear();
+		holderToAnim.clear();
 	}
 }

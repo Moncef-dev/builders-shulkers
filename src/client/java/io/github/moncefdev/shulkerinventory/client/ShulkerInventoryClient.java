@@ -41,7 +41,7 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(RemoteShulkerAnimationPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> {
 				if (payload.opening()) {
-					ClientShulkerSession.startOpeningRemote(payload.animationId());
+					ClientShulkerSession.startOpeningRemote(payload.animationId(), payload.holderEntityId());
 				} else {
 					ClientShulkerSession.startClosing(payload.animationId());
 				}
@@ -60,7 +60,11 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 		// lacking the mod. Singleplayer and modded servers register our channel (canSend true, nothing shown); an
 		// unmodded server never does, so the notice fires exactly once per connection.
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> ticksUntilServerModCheck = SERVER_MOD_CHECK_DELAY_TICKS);
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ticksUntilServerModCheck = -1);
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			ticksUntilServerModCheck = -1;
+			// Drop all animation state, so orphaned animations and their per-id box models never carry across sessions.
+			ClientShulkerSession.clearAll();
+		});
 
 		// Advance lid animations once per client tick, but NOT while the game is paused (singleplayer pause menu): the
 		// world is frozen there, so the lids must freeze too for consistency. isPaused() is false in multiplayer, where
