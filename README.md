@@ -15,7 +15,8 @@ items from your hotbar while you build.
 
 ### Build from a shulker in your hotbar (Pocket-Build)
 - Hold a shulker box in your hotbar and Ctrl + right-click to enter Pocket-Build mode, instead of placing the box.
-- Scroll the mouse wheel to pick a block inside the box; its name shows above your hotbar, and the box opens with a dissolving lid that reveals the selected block drawn inside it.
+- Scroll the mouse wheel to pick a block inside the box; its name shows above your hotbar, its count shows on the slot, and the box opens with a dissolving lid that reveals the selected block drawn inside it.
+- Middle-click a block you already have in the box to select it straight away; if it is not in the box, middle-click takes it from your inventory as usual.
 - Right-click to place that block straight from the box - on the ground, into an item frame, and so on - while the box stays in your hand. The block drawn inside the box follows it in your hand and on the ground.
 - Pocket-Build places blocks; a non-block selection does nothing, so the box stays a pocket of building blocks.
 - Hold Ctrl to peek at the box's full contents in an overlay above your hotbar.
@@ -23,6 +24,11 @@ items from your hotbar while you build.
 Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
+
+### 1.1.2
+**Pocket-Build now supports middle-click.** Middle-clicking a block you already have in the box selects it straight away, so you stay in the mode and keep building; if the block is not in the box, middle-click works as before and takes it from your inventory.
+
+**Count on the held box.** The shulker's hotbar slot now shows how many of the selected block you have, in the corner like a normal stacked item.
 
 ### 1.1.1
 **Content inside the box.** The shulker now shows the block you have selected drawn inside it while you build (in your hand and dropped on the ground), and its lid dissolves open to reveal it. Other players also see that full animation on a shulker you hold: the dissolving lid and the block inside, updating as you build, not just a basic opening lid.

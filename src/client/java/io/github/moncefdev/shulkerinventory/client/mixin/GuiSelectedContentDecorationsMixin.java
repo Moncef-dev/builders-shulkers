@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 // the content rendered inside. We redirect Gui.extractSlot's itemDecorations call (symmetrically to how
 // GuiSelectedItemNameMixin redirects the name popup); the held Pocket-Build shulker is identified by its animation_id
 // marker matching the active session, so another shulker in the hotbar is unaffected. The count is scaled down about
-// its OWN centre so it reads smaller without drifting toward the corner.
+// its RIGHT EDGE so it reads smaller while staying right-aligned in the corner.
 @Mixin(Gui.class)
 public abstract class GuiSelectedContentDecorationsMixin {
 	// The selected content's count is drawn at this fraction of normal hotbar size.

@@ -1,7 +1,7 @@
-# Builder's Shulkers - Technical Documentation (v1.1.1)
+# Builder's Shulkers - Technical Documentation (v1.1.2)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.1.1.
+their scope, and known risks. Describes the state as shipped in v1.1.2.
 
 ## Environment
 
@@ -69,31 +69,35 @@ what gets picked up or relocated.
   Survival is unaffected (the cursor is server-authoritative there and must keep its carried so the vanilla close
   re-gives it).
 
-## 3. Per-shulker identity: the `animation_id` component
+## 3. Per-shulker identity: the `animation_id` marker
 
 The lid animation must follow the SPECIFIC shulker even if it moves between slots, so it is
 keyed by a per-shulker identity, never by the slot.
 
 Minecraft items are value objects: an `ItemStack` has no per-instance unique id; equality is
-by (item, components). To track one specific shulker, the mod adds a synthetic identity: the
-`builders-shulkers:animation_id` data component (a `long`). It is allocated client-side at open as a
+by (item, components). To track one specific shulker, the mod adds a synthetic identity: a `long` stored
+under the namespaced key `builders-shulkers:animation_id` inside the VANILLA `minecraft:custom_data`
+component (NOT a registered custom component type, see below). It is allocated client-side at open as a
 globally-unique random long, stamped on the source stack server-side, and network-synchronized so the
 client renderer can recognize the animating stack wherever it is drawn (GUI, hand, dropped entity).
 
-- Why a data component, and why PERSISTENT (encodable): a stack that lives in a container is
-  hashed during container-click validation (`HashedStack`). A non-encodable (transient)
-  component throws `not encodable` and crashes the click handler. So the identity component
-  must be encodable, i.e. persistent.
+- Why inside vanilla `custom_data` (not a custom component type): a custom `DataComponentType` is a
+  SYNCED registry entry, so a client WITHOUT this mod is kicked at join (unknown registry entry).
+  `custom_data` is a vanilla component every client has, so non-mod clients join fine, decode stacks
+  that carry it, and simply ignore the extra NBT key. This is the 1.0.7 join-compat fix.
+- Why PERSISTENT (encodable): a stack that lives in a container is hashed during container-click
+  validation (`HashedStack`). A non-encodable (transient) component throws `not encodable` and crashes
+  the click handler. `custom_data` is encodable/persistent, so it is safe on that path.
 - Why a globally-unique RANDOM long (not a per-client counter): each client tracks its live animations in
   its own map keyed by this id. A per-client sequential counter restarts at the same values on every client,
   so in multiplayer a shulker carrying client A's id could collide with an unrelated animation client B tracks
   under the same id, making B render A's shulker as open. A random 64-bit id makes that collision
   astronomically improbable, and the worst case of a collision is a brief self-healing cosmetic glitch on one
   client (never a duplication). Zero is reserved as the render side channel's "no id" sentinel.
-- `.ignoreSwapAnimation()` on the component suppresses the first-person hand swap animation when an
-  already-present `animation_id` only changes VALUE. It does NOT cover the component being added or
-  removed; that case is handled by `IgnoreAnimationIdSwapMixin` (see section 5 for why both are
-  needed).
+- The first-person hand swap animation that would fire whenever the marker is added, removed, or
+  changed is suppressed entirely by `IgnoreAnimationIdSwapMixin` (see section 5). There is no vanilla
+  `.ignoreSwapAnimation()` flag here: because the marker lives in `custom_data`, which vanilla does NOT
+  ignore in its swap-equality check, the mixin is the only thing handling it.
 - The animation state machine (progress, OPENING/OPENED/CLOSING) is purely client-side in
   `ClientShulkerSession`. The marker is never stripped during a session (see section 7 for why); it is
   cleared at the next login.
@@ -166,13 +170,12 @@ Client (`builders-shulkers.client.mixins.json`):
   any shulker with no side channel set), which wrongly rendered other players' held shulkers as open from the
   local player's view.
 - `IgnoreAnimationIdSwapMixin` -> `ItemInHandRenderer.shouldInstantlyReplaceVisibleItem` (HEAD,
-  cancellable): suppress the hand swap animation when two held stacks differ only by `animation_id`
-  being added or removed. This is NOT redundant with the vanilla `.ignoreSwapAnimation()` flag.
-  Vanilla decides via `ItemStack.matchesIgnoringComponents`, which first short-circuits to false on
-  `components.size()` inequality and only consults the ignore predicate afterwards (at equal size).
-  So the flag covers a value change of an already-present component, but a component that is present
-  on one stack and absent on the other (opening a shulker adds it; an untouched shulker has none)
-  changes the map size and still triggers the swap. This mixin covers exactly that add/remove transition.
+  cancellable): force an instant swap (no swing animation) when two consecutive held stacks differ
+  ONLY by our marker. It compares every component except `CUSTOM_DATA`, then compares `custom_data`
+  minus the `animation_id` key (`diffIsOnlyMarker`). This is needed because the marker lives in vanilla
+  `custom_data`, which vanilla does NOT ignore in its swap-equality check, so without the mixin the hand
+  would jolt every time the marker is added, removed, or changed. (There is no `.ignoreSwapAnimation()`
+  flag: that belonged to the old custom component type, dropped for join compatibility, see section 3.)
 
 ## 6. Networking payloads
 
@@ -188,12 +191,12 @@ Client (`builders-shulkers.client.mixins.json`):
   just the plain lid. Sent on enter, on every scroll, and after each placement, so the block updates as the holder
   builds and renders empty once a slot's last item is placed. Gated by `canSend` per viewer.
 
-## 7. Known limitations and risks (v1.1.1)
+## 7. Known limitations and risks (v1.1.2)
 
-- Component-equality divergence (observed, not just theoretical). While `animation_id` is present,
-  the shulker is not equal by components to an otherwise identical stack without it. This is a real
-  consequence: vanilla's own `ItemStack.matchesIgnoringComponents` (used by the first-person swap
-  logic) treats the tagged and untagged shulker as different, which is exactly why
+- Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
+  present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
+  stack without it. This is a real consequence: the first-person held-item swap logic, which compares
+  the old and new held stacks, treats the tagged and untagged shulker as different, which is exactly why
   `IgnoreAnimationIdSwapMixin` has to exist (see section 5). The blast radius stays small because the
   paths most sensitive to component equality (stacking, item merging, ground-entity merging) are
   gated by stackability, and shulker boxes are non-stackable in vanilla, so they never take those
