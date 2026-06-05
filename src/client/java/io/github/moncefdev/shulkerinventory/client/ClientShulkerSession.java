@@ -128,12 +128,18 @@ public final class ClientShulkerSession {
 		// One held shulker per holder means one live animation: drain this holder's previous one if any. A leftover is an
 		// orphan (e.g. an earlier open whose held-gated close never reached this viewer), so replacing it here bounds the
 		// per-holder state to one and removes the open/move-out-of-hand spam as a memory-leak vector.
+		// Resume from the previous animation's openness BEFORE dropping it, so a quick re-open continues from where the
+		// closing lid is - matching what the opener sees (beginHeldOpening) - instead of snapping back to 0 for viewers.
 		Long previous = holderToAnim.put(holderEntityId, animationId);
+		float resume = 0f;
 		if (previous != null && previous != animationId) {
+			resume = currentProgress(previous);
 			animations.remove(previous);
 		}
 		AnimationState anim = animations.computeIfAbsent(animationId, k -> new AnimationState());
 		anim.status = AnimationStatus.OPENING;
+		anim.progress = resume;
+		anim.progressOld = resume;
 	}
 
 	public static void startClosing(long animationId) {

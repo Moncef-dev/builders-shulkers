@@ -29,10 +29,12 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	private final int sourceSlotInMenu;
 	private final long animationId;
 	private boolean alreadySaved = false;
-	// Set when this session ends because the source shulker stack itself was disturbed (grabbed off its slot). The
-	// box then vanishes for other viewers, so the closing animation is broadcast SILENTLY to them (drain the state
-	// without a phantom close sound). A normal close (toggle or Escape) leaves this false and stays sonorous.
+	// Set when this session ends because the source shulker stack itself was disturbed (grabbed off its slot, swapped,
+	// or dropped). A normal close (toggle or Escape) leaves this false.
 	private boolean disturbed = false;
+	// Set when the disturbance was a DROP (the source shulker thrown to the world): unlike a grab/swap, the box stays
+	// VISIBLE to viewers as a dropped item entity, so its closing animation keeps its sound instead of being silent.
+	private boolean droppedToWorld = false;
 
 	public InventoryShulkerBoxMenu(int syncId, Inventory playerInventory, SimpleContainer shulkerContent, int sourceSlotIndex, long animationId) {
 		super(syncId, playerInventory, shulkerContent);
@@ -130,6 +132,9 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		// happens before the move, so the up-to-date stack is what gets picked up or relocated.
 		if (touchesSourceSlot(slotId, button, input)) {
 			disturbed = true;
+			// A THROW on the source slot (drop key) sends the box to the world as a visible item; a PICKUP/SWAP sends it
+			// to the cursor or another slot. Only the drop keeps the close sound for viewers (see removed()).
+			droppedToWorld = input == ContainerInput.THROW;
 			broadcastFullState();
 			if (player instanceof ServerPlayer serverPlayer) {
 				saveContents(serverPlayer);
@@ -190,13 +195,15 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		if (!alreadySaved) {
 			saveContents(player);
 		}
-		// Mirror the closing lid animation/sound to the other players who can see the holder. removed() is the single
-		// close chokepoint (toggle, commit-on-disturbance, Escape, swap all route through it). Held-gated: only when
-		// the shulker is in the hand (visible to them). The opener's own close sound is played on their own client.
-		if (player instanceof ServerPlayer serverPlayer && isHeld(serverPlayer)) {
-			// Silent close when the source shulker was disturbed (grabbed): the box disappears for viewers, so they
-			// drain the animation state without a phantom close sound. Toggle/Escape closes stay sonorous.
-			broadcastAnimation(serverPlayer, animationId, false, !disturbed);
+		// Mirror the closing lid animation to the other players who can see the holder. removed() is the single close
+		// chokepoint (toggle, commit-on-disturbance, Escape, swap all route through it). Broadcast it ALWAYS, so a viewer
+		// drains/animates the box even if it only became visible mid-animation. The SOUND plays only when the box is
+		// visible at the close: still held (a normal toggle/Escape close), or just dropped to the world (a visible item
+		// entity). A grab/swap moves it to the cursor or another slot (invisible to viewers) and stays silent. The
+		// opener's own close sound is played on their own client.
+		if (player instanceof ServerPlayer serverPlayer) {
+			boolean playSound = disturbed ? droppedToWorld : isHeld(serverPlayer);
+			broadcastAnimation(serverPlayer, animationId, false, playSound);
 		}
 	}
 

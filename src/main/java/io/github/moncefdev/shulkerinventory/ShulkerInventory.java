@@ -76,13 +76,12 @@ public class ShulkerInventory implements ModInitializer {
 			// Tag the stack (in vanilla custom_data) so the client knows to play the lid animation for this open.
 			ShulkerAnimationMarker.set(stack, animationId);
 			player.openMenu(provider);
-			// Mirror the opening lid animation/sound to the OTHER players who can see this player, but only when the
-			// shulker is HELD (visible in hand): an open from an invisible inventory slot has nothing for them to
-			// see or hear. The opener's own animation and sound are handled on their own client.
+			// Mirror the opening lid animation to the OTHER players who can see this player. Broadcast it ALWAYS, so a
+			// viewer holds the animation even when the box is not visible yet and only becomes so mid-animation (the
+			// opener moves it to the hotbar, or drops it). The SOUND is gated on held: it accompanies the open's start,
+			// so a box that becomes visible later has already missed it. The opener's own animation and sound are local.
 			boolean held = InventoryShulkerBoxMenu.isHeldSlot(inventory, slotIndex);
-			if (held) {
-				InventoryShulkerBoxMenu.broadcastAnimation(player, animationId, true, true);
-			}
+			InventoryShulkerBoxMenu.broadcastAnimation(player, animationId, true, held);
 		});
 
 		// Pocket-Build mode: the player entered or left the mode holding the shulker at hotbarSlot. Track the
