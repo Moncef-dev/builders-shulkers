@@ -18,7 +18,7 @@ loom {
 	splitEnvironmentSourceSets()
 
 	mods {
-		"shulker-inventory" {
+		"builders-shulkers" {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
@@ -77,6 +77,12 @@ java {
 }
 
 jar {
+	// MC 26.1 ships deobfuscated, so there is no remap step: the `jar` task IS the final published jar. Append the
+	// loader and the targeted Minecraft version via the classifier (-> builders-shulkers-<version>-fabric-<mc>.jar),
+	// for clear multi-version / multi-loader portability. The mod VERSION stays clean (mod_version) for fabric.mod.json;
+	// only the file name carries the loader and MC version.
+	archiveClassifier = "fabric-${project.minecraft_version}"
+
 	def projectName = project.name
 	inputs.property "projectName", projectName
 
@@ -101,3 +107,7 @@ publishing {
 		// retrieving dependencies.
 	}
 }
+
+// Name the built jar after the loader and the Minecraft version it targets, for clear multi-version / multi-loader
+// portability (e.g. builders-shulkers-1.1.1-fabric-26.1.2.jar). The mod VERSION stays clean (mod_version) for
+// fabric.mod.json; only the file name carries the loader and MC version.
