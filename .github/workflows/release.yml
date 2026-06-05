@@ -1,0 +1,59 @@
+# Build the release jar on GitHub's own infrastructure, from the exact commit the release tag points to, and attach a
+# signed SLSA build-provenance attestation to it. Anyone can then verify the published jar really is the compilation of
+# this public repo at that tag, with:
+#
+#   gh attestation verify <the-jar> --repo Moncef-dev/builders-shulkers
+#
+# Flow: you create and PUBLISH a GitHub Release (with your own changelog notes) for a vX.Y.Z tag; this workflow then
+# checks out that tag, builds the jar, attests it, and uploads it to that same release. So the release notes stay yours
+# and the jar is CI-built (never a hand-edited local jar).
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write      # upload the jar asset to the release
+  id-token: write      # OIDC token used to sign the provenance attestation
+  attestations: write  # store the attestation on the repository
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout the release tag
+        uses: actions/checkout@v6
+
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: build
+        run: ./gradlew build
+
+      - name: identify the runnable jar
+        id: jar
+        run: |
+          jar=$(ls build/libs/*.jar | grep -vE -- '-(sources|dev)\.jar$' | head -n1)
+          if [ -z "$jar" ]; then echo "no runnable jar found in build/libs" >&2; exit 1; fi
+          echo "path=$jar" >> "$GITHUB_OUTPUT"
+          echo "Selected jar: $jar"
+
+      - name: generate build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.jar.outputs.path }}
+
+      - name: upload the jar to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.jar.outputs.path }}
