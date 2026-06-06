@@ -47,56 +47,57 @@ public final class PocketBuildMode {
 		animationId = 0L;
 	}
 
-	// Advance the selection to the next (direction +1) or previous (direction -1) NON-EMPTY content slot, wrapping
-	// around. With no non-empty slot the selection clears. Empty slots are skipped so a blind scroll never lands on
-	// nothing during a build.
+	// Move the selection to the FIRST stack of the next (scroll forward, direction >= 0) or previous (direction < 0)
+	// DIFFERENT item, always skipping empty slots. Consecutive non-empty stacks of the same item (same item AND
+	// components, like the middle-click pick) form one run, so a scroll jumps a whole run of duplicates in a single
+	// step and lands on the START of the next/previous run - a shorter, more memorable palette for blind building.
+	// Backward deliberately lands on the FIRST stack of the previous run, not the last one reached, so forward then
+	// backward returns where you were. Empty slots never split a run; identical items separated by a different item
+	// are distinct runs. With a single distinct item the selection snaps to its first stack; with none it clears.
+	// After a placement empties the selected slot, the selection sits "before" the rebuilt run, so the next forward
+	// picks the nearest remaining stack and backward wraps to the last run.
 	public static void cycle(int direction, ItemStack shulker) {
 		NonNullList<ItemStack> items = readContents(shulker);
-		int[] nonEmpty = new int[ShulkerContents.SIZE];
-		int count = 0;
-		for (int i = 0; i < ShulkerContents.SIZE; i++) {
-			if (!items.get(i).isEmpty()) {
-				nonEmpty[count++] = i;
+		int size = ShulkerContents.SIZE;
+		// First slot of each run of consecutive same-item stacks (empties ignored, so they do not split a run).
+		int[] runFirst = new int[size];
+		int runCount = 0;
+		int lastNonEmpty = -1;
+		for (int i = 0; i < size; i++) {
+			ItemStack s = items.get(i);
+			if (s.isEmpty()) {
+				continue;
 			}
+			if (lastNonEmpty < 0 || !ItemStack.isSameItemSameComponents(s, items.get(lastNonEmpty))) {
+				runFirst[runCount++] = i;
+			}
+			lastNonEmpty = i;
 		}
-		if (count == 0) {
+		if (runCount == 0) {
 			selectedContentSlot = -1;
 			return;
 		}
-		int pos = -1;
-		for (int i = 0; i < count; i++) {
-			if (nonEmpty[i] == selectedContentSlot) {
-				pos = i;
+		if (runCount == 1) {
+			selectedContentSlot = runFirst[0];
+			return;
+		}
+		// The run the selection currently sits in: the last run starting at or before the selected slot, or none
+		// (-1) when the selection is before the first run (no selection, or a just-emptied slot).
+		int curRun = -1;
+		for (int k = 0; k < runCount; k++) {
+			if (runFirst[k] <= selectedContentSlot) {
+				curRun = k;
+			} else {
 				break;
 			}
 		}
-		if (pos >= 0) {
-			// Still on a non-empty slot: step to the next (+1) or previous (-1) non-empty slot, wrapping.
-			selectedContentSlot = nonEmpty[Math.floorMod(pos + direction, count)];
-			return;
-		}
-		// The previously selected slot was EMPTIED (it is no longer in nonEmpty). Step to the non-empty slot that is the
-		// next (direction >= 0) or previous (direction < 0) BY SLOT INDEX, relative to where the selection was, wrapping -
-		// instead of snapping back to the first non-empty (what happened when pos fell through to 0).
+		int target;
 		if (direction >= 0) {
-			int chosen = nonEmpty[0];
-			for (int i = 0; i < count; i++) {
-				if (nonEmpty[i] > selectedContentSlot) {
-					chosen = nonEmpty[i];
-					break;
-				}
-			}
-			selectedContentSlot = chosen;
+			target = Math.floorMod(curRun + 1, runCount); // curRun == -1 -> first run
 		} else {
-			int chosen = nonEmpty[count - 1];
-			for (int i = count - 1; i >= 0; i--) {
-				if (nonEmpty[i] < selectedContentSlot) {
-					chosen = nonEmpty[i];
-					break;
-				}
-			}
-			selectedContentSlot = chosen;
+			target = curRun <= 0 ? runCount - 1 : curRun - 1; // before-first or first run -> wrap to last
 		}
+		selectedContentSlot = runFirst[target];
 	}
 
 	// A snapshot of the held shulker's content stacks (for the peek overlay rendering).
