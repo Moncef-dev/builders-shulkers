@@ -1,7 +1,7 @@
-# Builder's Shulkers - Technical Documentation (v1.1.3)
+# Builder's Shulkers - Technical Documentation (v1.1.4)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.1.3.
+their scope, and known risks. Describes the state as shipped in v1.1.4.
 
 ## Environment
 
@@ -29,7 +29,10 @@ working copy of the source stack's `minecraft:container` component contents.
 - Why: free compatibility with mods that react to the vanilla shulker menu/screen; vanilla
   slot validation (including nested-shulker rejection via `ShulkerBoxSlot`) for free; all
   vanilla shortcuts work without custom code.
-- Scope: assumes the vanilla shulker size (27 slots).
+- Scope: the UI edits the vanilla 27 slots. If a tagged shulker from another mod carries an EXTENDED
+  container (> 27 slots), `ShulkerContents.write` preserves every slot past 27 (it read-modify-writes
+  only slots 0..26), so no item is ever lost - those extra slots are simply not shown in the 27-slot UI.
+  A vanilla-size shulker is unaffected (nothing past 27 to keep).
 
 ## 2. Server-authoritative editing and anti-duplication (commit-on-disturbance)
 
@@ -191,7 +194,7 @@ Client (`builders-shulkers.client.mixins.json`):
   just the plain lid. Sent on enter, on every scroll, and after each placement, so the block updates as the holder
   builds and renders empty once a slot's last item is placed. Gated by `canSend` per viewer.
 
-## 7. Known limitations and risks (v1.1.3)
+## 7. Known limitations and risks (v1.1.4)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -506,6 +509,13 @@ compatible from the other mod's side.
   `minecraft:shulker_boxes` ITEM tag (`stack.typeHolder().is(ItemTags.SHULKER_BOXES)`), not a
   hardcoded class, so a custom shulker item that is in that tag is recognized automatically.
   To be compatible: add custom shulker variants to the vanilla `minecraft:shulker_boxes` item tag.
+
+- Extended-storage shulkers (> 27 slots) are handled SAFELY, not fully. The UI is fixed at 27 slots, and
+  there is no vanilla way to read a shulker's capacity from its item, so we cannot open a custom-sized menu.
+  `ShulkerContents.write` instead preserves any slots past 27 on every save (GUI close and Pocket-Build
+  placement), so an extended shulker that IS in the tag never loses items; only its first 27 slots are
+  reachable through our UI (the rest stay accessible via that mod's own placed-block menu). A mod whose
+  shulkers are NOT in the tag is never intercepted, so it keeps its full behaviour.
 
 - Conflicting interception of inventory clicks. Our click mixins inject at `slotClicked` HEAD
   and cancel only for a tightly gated case (plain right-click, empty cursor, a shulker in the
