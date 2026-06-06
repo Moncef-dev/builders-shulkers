@@ -1,7 +1,7 @@
-# Builder's Shulkers - Technical Documentation (v1.1.2)
+# Builder's Shulkers - Technical Documentation (v1.1.3)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.1.2.
+their scope, and known risks. Describes the state as shipped in v1.1.3.
 
 ## Environment
 
@@ -191,7 +191,7 @@ Client (`builders-shulkers.client.mixins.json`):
   just the plain lid. Sent on enter, on every scroll, and after each placement, so the block updates as the holder
   builds and renders empty once a slot's last item is placed. Gated by `canSend` per viewer.
 
-## 7. Known limitations and risks (v1.1.2)
+## 7. Known limitations and risks (v1.1.3)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -258,7 +258,8 @@ server-authoritative, so nothing can be duplicated.
   use-on packet swaps in the right content). `isActive` (key present) is kept distinct from `selectedSlot` (which
   returns -1 both for "not in the mode" and "in the mode with nothing selected"), so an empty selection places nothing
   instead of the box.
-- Input. `MouseHandlerScrollMixin` reroutes the wheel to cycle the selected NON-EMPTY content slot (cancelling the
+- Input. `MouseHandlerScrollMixin` reroutes the wheel to move the selection to the first stack of the next/previous
+  DIFFERENT item, skipping over runs of the same item and any empty slots (cancelling the
   vanilla hotbar scroll); `InventorySelectedSlotMixin` blocks the number-key slot change, scoped to the local player;
   the off-hand swap key (F) is drained each client tick. The selection is synced to the server with
   `PocketBuildSelectPayload`.

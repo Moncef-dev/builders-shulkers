@@ -25,6 +25,9 @@ Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
 
+### 1.1.3
+In Pocket-Build, scrolling now jumps to the next or previous DIFFERENT block instead of stepping through every stack one by one. Stacks of the same block are skipped, so switching blocks stays fast even when your shulker holds many stacks of the same item. Scrolling back lands on the first of those stacks.
+
 ### 1.1.2
 **Pocket-Build now supports middle-click.** Middle-clicking a block you already have in the box selects it straight away, so you stay in the mode and keep building; if the block is not in the box, middle-click works as before and takes it from your inventory.
 
