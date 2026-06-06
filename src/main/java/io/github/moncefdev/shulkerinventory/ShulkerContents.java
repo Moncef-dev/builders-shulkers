@@ -33,8 +33,20 @@ public final class ShulkerContents {
 		return items;
 	}
 
-	// Writes the given items back into the stack's CONTAINER component.
+	// Writes the given items back into the stack's CONTAINER component, PRESERVING any slots beyond SIZE. Our UI only
+	// edits the first SIZE (vanilla 27) slots, but a shulker added by another mod can be in the SHULKER_BOXES tag yet
+	// carry an EXTENDED container (more than SIZE slots). So we read the full existing container, overwrite ONLY slots
+	// 0..SIZE-1 with the edited items, and keep every slot past SIZE untouched - no item is ever lost. A vanilla-size
+	// shulker has nothing past SIZE, so fullSize stays SIZE and the SIZE-slot loop overwrites the whole list: the result
+	// is then byte-for-byte the old behaviour (no vanilla change).
 	public static void write(ItemStack shulker, List<ItemStack> items) {
-		shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
+		ItemContainerContents existing = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
+		int fullSize = Math.max(SIZE, (int) existing.allItemsCopyStream().count());
+		NonNullList<ItemStack> full = NonNullList.withSize(fullSize, ItemStack.EMPTY);
+		existing.copyInto(full);
+		for (int i = 0; i < SIZE; i++) {
+			full.set(i, items.get(i));
+		}
+		shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(full));
 	}
 }
