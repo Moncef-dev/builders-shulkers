@@ -3,8 +3,8 @@ package io.github.moncefdev.shulkerinventory.client.mixin;
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildMode;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.Hud;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix3x2fStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,11 +15,11 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 // the block you are about to place you have), like a normal hotbar item. Pocket-Build places BLOCKS only (the full-use
 // gamerule does not exist yet), so the durability bar and cooldown overlay have no meaning here: we draw ONLY the count,
 // not the rest of the vanilla decorations. The slot ICON is drawn earlier and separately, so it stays the shulker with
-// the content rendered inside. We redirect Gui.extractSlot's itemDecorations call (symmetrically to how
+// the content rendered inside. We redirect Hud.extractSlot's itemDecorations call (symmetrically to how
 // GuiSelectedItemNameMixin redirects the name popup); the held Pocket-Build shulker is identified by its animation_id
 // marker matching the active session, so another shulker in the hotbar is unaffected. The count is scaled down about
 // its RIGHT EDGE so it reads smaller while staying right-aligned in the corner.
-@Mixin(Gui.class)
+@Mixin(Hud.class)
 public abstract class GuiSelectedContentDecorationsMixin {
 	// The selected content's count is drawn at this fraction of normal hotbar size.
 	private static final float SELECTED_COUNT_SCALE = 0.8f;

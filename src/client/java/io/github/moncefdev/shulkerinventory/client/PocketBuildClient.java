@@ -3,6 +3,7 @@ package io.github.moncefdev.shulkerinventory.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
+import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -15,6 +16,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -92,7 +94,7 @@ public final class PocketBuildClient {
 			boolean stillShulker = ShulkerContents.isShulker(held);
 			// Only opening a container UI (the player's own inventory, a chest, any container) ends the mode, like
 			// the chest GUI flow. The pause menu, options, chat, etc. leave the mode running.
-			if (mc.screen instanceof AbstractContainerScreen || !stillShulker
+			if (mc.gui.screen() instanceof AbstractContainerScreen || !stillShulker
 					|| mc.player.getInventory().getSelectedSlot() != PocketBuildMode.sourceHotbarSlot()) {
 				exitMode();
 				return;
@@ -140,7 +142,7 @@ public final class PocketBuildClient {
 		// the mod (so it can validate the placement server-authoritatively). Otherwise leave vanilla alone.
 		ItemStack held = player.getMainHandItem();
 		if (ctrl && ShulkerContents.isShulker(held)
-				&& mc.screen == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {
+				&& mc.gui.screen() == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {
 			if (rightClickReleased) {
 				enterMode(player, held);
 				rightClickReleased = false;
@@ -178,5 +180,45 @@ public final class PocketBuildClient {
 		}
 		ClientShulkerSession.startClosing(id);
 		ClientShulkerSession.playOwnSound(false);
+	}
+
+	// Select the content matching `pick` inside the held shulker and sync the new selection to the server (like a
+	// scroll). Returns true if `pick` was found in the box (selection made), false otherwise. Shared by the vanilla
+	// pick handling (MultiPlayerGameModePickMixin) and the Litematica pick interop (LitematicaPickBlockCompat).
+	public static boolean selectContentMatching(ItemStack heldShulker, ItemStack pick) {
+		if (!PocketBuildMode.selectMatchingSlot(heldShulker, pick)) {
+			return false;
+		}
+		if (ClientPlayNetworking.canSend(PocketBuildSelectPayload.TYPE)) {
+			ClientPlayNetworking.send(new PocketBuildSelectPayload(PocketBuildMode.selectedContentSlot()));
+		}
+		return true;
+	}
+
+	// Full Pocket-Build pick-block decision, shared by the vanilla pick (MultiPlayerGameModePickMixin) and the
+	// Litematica schematic pick (LitematicaPickBlockCompat). Priority 1: `pick` is already in the held shulker -> select
+	// that content (synced like a scroll) and return true, so the caller cancels the default pick and stays in the mode.
+	// Priority 2: otherwise, if the pick would actually take an item (creative, or the item is already in the inventory),
+	// EXIT Pocket-Build so the default pick runs and the selected slot follows normally (the locked hotbar would
+	// otherwise desync). Priority 3: a no-op pick leaves the mode untouched. Returns true ONLY for the select-from-box case.
+	public static boolean handlePocketBuildPick(LocalPlayer player, ItemStack pick) {
+		if (selectContentMatching(player.getMainHandItem(), pick)) {
+			return true;
+		}
+		if (willPickItem(player, pick)) {
+			exitMode();
+		}
+		return false;
+	}
+
+	// The server's tryPickItem condition: creative (infinite materials) always picks; otherwise the pick happens only
+	// when the player already holds a matching item somewhere in the inventory. Anything else is a no-op.
+	// RE-VERIFY against vanilla tryPickItem at each Minecraft update: this is a hand-copied condition, the one vanilla
+	// rule the mod re-implements rather than reuses.
+	private static boolean willPickItem(LocalPlayer player, ItemStack pick) {
+		if (player.hasInfiniteMaterials()) {
+			return true;
+		}
+		return pick != null && !pick.isEmpty() && player.getInventory().findSlotMatchingItem(pick) != -1;
 	}
 }

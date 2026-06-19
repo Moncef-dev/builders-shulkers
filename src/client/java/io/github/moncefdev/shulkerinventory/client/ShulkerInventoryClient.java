@@ -4,7 +4,9 @@ import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildRemoteContentPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
+import io.github.moncefdev.shulkerinventory.client.compat.LitematicaPickBlockCompat;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -31,7 +33,7 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 				var player = context.client().player;
 				if (player != null) {
 					player.containerMenu = player.inventoryMenu;
-					context.client().setScreen(new InventoryScreen(player));
+					context.client().gui.setScreen(new InventoryScreen(player));
 				}
 			});
 		});
@@ -89,6 +91,13 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 
 		// Pocket-Build: Ctrl + right-click a held shulker to enter/exit the block-placement mode.
 		PocketBuildClient.register();
+
+		// Optional Litematica interop: middle-clicking a schematic ghost block while pocket-building selects the
+		// matching content from the held shulker instead of letting Litematica swap the shulker away. Gated on
+		// Litematica being installed, so the compat class (and its Litematica references) is only loaded then.
+		if (FabricLoader.getInstance().isModLoaded("litematica")) {
+			LitematicaPickBlockCompat.register();
+		}
 
 		// Run the deferred server-mod check once its delay elapses (armed at JOIN above).
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {

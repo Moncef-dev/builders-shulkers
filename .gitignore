@@ -46,3 +46,4 @@ replay_*.log
 
 # project-internal (not part of the distributed mod)
 .claude/
+dist/

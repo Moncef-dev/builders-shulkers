@@ -46,7 +46,7 @@ public final class PocketBuildOverlay {
 			return;
 		}
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.player == null || mc.screen != null) {
+		if (mc.player == null || mc.gui.screen() != null) {
 			return;
 		}
 		ItemStack shulker = mc.player.getMainHandItem();

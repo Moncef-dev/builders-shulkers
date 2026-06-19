@@ -52,12 +52,12 @@ public abstract class ShulkerBoxLidFadeMixin {
 		TextureAtlasSprite atlasSprite = sprites.get(sprite);
 		// Base: always opaque cutout, original tint.
 		collector.submitModelPart(base, poseStack, sprite.renderType(RenderTypes::entityCutout), lightCoords,
-				overlayCoords, atlasSprite, false, false, tintedColor, crumblingOverlay, outlineColor);
+				overlayCoords, atlasSprite, tintedColor, crumblingOverlay, outlineColor);
 		// Lid: dissolve (order-independent cutout), threshold driven by tint alpha = 1 - openness, until fully gone.
 		if (openness < LID_HIDE_OPENNESS) {
 			RenderType dissolve = sprite.renderType(
 					texture -> RenderTypes.entityCutoutDissolve(texture, DissolveMask.identifier()));
-			collector.submitModelPart(lid, poseStack, dissolve, lightCoords, overlayCoords, atlasSprite, false, false,
+			collector.submitModelPart(lid, poseStack, dissolve, lightCoords, overlayCoords, atlasSprite,
 					ARGB.white(1.0f - openness), crumblingOverlay, outlineColor);
 		}
 	}
