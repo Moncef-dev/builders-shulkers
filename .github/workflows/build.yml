@@ -27,4 +27,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Artifacts
-          path: build/libs/
+          # Stonecutter emits one jar per Minecraft version under versions/<mc>/build/libs.
+          path: versions/*/build/libs/
