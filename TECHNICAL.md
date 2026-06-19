@@ -1,14 +1,35 @@
-# Builder's Shulkers - Technical Documentation (v1.1.4)
+# Builder's Shulkers - Technical Documentation (v1.1.5)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.1.4.
+their scope, and known risks. Describes the state as shipped in v1.1.5.
 
 ## Environment
 
-- Loader: Fabric. Minecraft 26.1.2. JDK 25.
-- Mappings: official Mojang names (MC 26.1 ships deobfuscated), not Yarn.
+- Loader: Fabric. Minecraft 26.1.2 and 26.2 (one source, both jars; see Multi-version build below). JDK 25.
+- Mappings: official Mojang names (MC 26.1+ ships deobfuscated), not Yarn.
 - Split source sets: `client` (rendering, input, screens) and `main` (registration,
   menu, networking). Client code is never called from common code.
+
+### Multi-version build (Stonecutter)
+
+One source tree builds a jar per supported Minecraft version
+(`builders-shulkers-<mod_version>-fabric-26.1.2.jar` and `...-fabric-26.2.jar`), split with Stonecutter:
+`settings.gradle.kts` declares the versions, `build.gradle.kts` is the shared per-version script (the dependency
+pins are keyed on the active version), and `stonecutter.gradle.kts` is the version controller. `./gradlew build`
+builds every version; the mod version stays clean and only the jar classifier carries the Minecraft version.
+
+The source is kept in 26.2 form (the vcs version) and a handful of global Stonecutter replacements rewrite it back
+to 26.1.2 at configure time. They cover the only client-side API deltas between the two versions:
+
+- `Gui` was split into `Gui` + a new `Hud` class (the HUD: hotbar, item-name popup). The HUD mixins
+  (`GuiSelectedItemNameMixin`, `GuiSelectedContentDecorationsMixin`) target `Hud` on 26.2 and `Gui` on 26.1.2, so
+  the methods this doc calls `Gui.tick` / `Gui.extractSlot` live on `Hud` in 26.2. `GuiItemAtlasMixin` (`drawToSlot`)
+  is unchanged and stays on `Gui`.
+- The removed `Minecraft.screen` field became the `Gui.screen()` getter, and `Minecraft.setScreen` became `gui.setScreen`.
+- `OrderedSubmitNodeCollector.submitModelPart` dropped two trailing boolean flags.
+
+Both versions share the same render paradigm (the `GuiGraphicsExtractor` + `Matrix3x2fStack` GUI path), so 26.x
+stays a single family behind one source rather than separate branches.
 
 ## Overview
 
@@ -194,7 +215,7 @@ Client (`builders-shulkers.client.mixins.json`):
   just the plain lid. Sent on enter, on every scroll, and after each placement, so the block updates as the holder
   builds and renders empty once a slot's last item is placed. Gated by `canSend` per viewer.
 
-## 7. Known limitations and risks (v1.1.4)
+## 7. Known limitations and risks (v1.1.5)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -271,9 +292,10 @@ server-authoritative, so nothing can be duplicated.
   (`isDeadOrDying`, so a keepInventory death - which neither drops the shulker nor opens a container - cannot leave the
   mode stuck through respawn). The pause menu, options and chat deliberately leave the mode running. Pick-block is a
   special case: it is server-authoritative (the server moves the picked item into a hotbar slot and changes the selected
-  slot, which the locked hotbar cannot follow, desyncing the inventory), so `MultiPlayerGameModePickMixin` exits the
-  mode at the head of `handlePickItemFromBlock` / `handlePickItemFromEntity`, before the pick runs - which then proceeds
-  vanilla and unlocked.
+  slot, which the locked hotbar cannot follow, desyncing the inventory), so `MultiPlayerGameModePickMixin` routes it
+  through the shared `PocketBuildClient.handlePocketBuildPick` at the head of `handlePickItemFromBlock` /
+  `handlePickItemFromEntity`: it either selects the matching content from the box (staying in the mode) or exits the mode
+  before the pick runs so it proceeds vanilla and unlocked (see the pick-block subsections).
 - Animation. Entering and leaving the mode reuse the inventory-open machinery (sections 3-4): the client begins the
   lid animation via the shared `ClientShulkerSession.beginHeldOpening`, which resumes from the shulker's current
   openness on a quick re-enter; the server stamps the `animation_id` marker and broadcasts open/close, so the held
@@ -281,7 +303,7 @@ server-authoritative, so nothing can be duplicated.
   shared with the inventory open path so the resume behaviour cannot diverge between the two modes.
 - Peek overlay and item name (client HUD). While Ctrl is held (after a short debounce, so the quick Ctrl + right-click
   toggle never flashes it), `PocketBuildOverlay` draws the 27 contents as the actual vanilla shulker-box container
-  interface above the hotbar (through the 26.1.2 `GuiGraphicsExtractor`), with the selected slot under the vanilla
+  interface above the hotbar (through the mod's `GuiGraphicsExtractor`), with the selected slot under the vanilla
   container hover highlight. Each item is drawn with vanilla's own `itemDecorations` (count, durability bar, cooldown
   overlay), so every slot subtlety appears exactly as in any container, instead of being redrawn by hand (1.1.1).
   `GuiSelectedItemNameMixin` redirects the held-stack read in `Gui.tick` to the selected content, so the vanilla hotbar
@@ -483,21 +505,26 @@ position and scaled to 0.8 about its RIGHT EDGE (via the `GuiGraphicsExtractor.p
 touch smaller while staying right-aligned: scaling about the centre would push a 1-digit count further right than a
 2-digit one. Shown only when the count is > 1, like vanilla.
 
-### Pick-block selects from the box first (1.1.2)
+### Pick-block selects from the box first (1.1.2, shared helper in 1.1.5)
 
 In Pocket-Build, middle-click (pick-block) tries the held shulker BEFORE the inventory. `MultiPlayerGameModePickMixin`
-computes the picked item exactly like vanilla (`getCloneItemStack` for a block, `getPickResult` for an entity), then:
-- Priority 1: if a content slot matches it, SELECT that slot and cancel the vanilla pick, staying in the mode. The match
-  is `ItemStack.isSameItemSameComponents` on the FIRST matching slot - the exact criterion and order vanilla's
-  `Inventory.findSlotMatchingItem` uses for the inventory pick-block (so a renamed block / a specific banner / a player
-  head only matches its exact self, and Ctrl + pick, which puts data into the picked item, matches accordingly). The
-  selection is synced to the server with `PocketBuildSelectPayload`, like a scroll; the in-box render follows next tick.
+computes the picked item exactly like vanilla (`getCloneItemStack` for a block, `getPickResult` for an entity) and routes
+it through the shared `PocketBuildClient.handlePocketBuildPick`, which decides:
+- Priority 1: if a content slot matches it, SELECT that slot (`selectContentMatching`) and cancel the vanilla pick,
+  staying in the mode. The match is `ItemStack.isSameItemSameComponents` on the FIRST matching slot - the exact criterion
+  and order vanilla's `Inventory.findSlotMatchingItem` uses for the inventory pick-block (so a renamed block / a specific
+  banner / a player head only matches its exact self, and Ctrl + pick, which puts data into the picked item, matches
+  accordingly). The selection is synced to the server with `PocketBuildSelectPayload`, like a scroll; the in-box render
+  follows next tick.
 - Priority 2 (unchanged): not in the box but IN the inventory (or creative) -> leave the mode and let the vanilla pick
-  take it (server-authoritative).
+  take it (server-authoritative). "Would the pick take an item" is `willPickItem` (creative, or the item is already in
+  the inventory), the one vanilla `tryPickItem` rule the mod re-implements rather than reuses.
 - Priority 3 (unchanged): nowhere at all -> STAY in the mode and do nothing. The vanilla pick is a no-op, so there is no
-  slot change to desync. Leaving the mode stays gated on the pick actually happening (`willPick`), exactly as before.
+  slot change to desync.
 
-The box selection is purely client-side state (no item moves), so there is no duplication concern.
+`handlePocketBuildPick` (and `selectContentMatching`) are shared with the Litematica schematic pick (section 10), so the
+two pick paths behave identically. The box selection is purely client-side state (no item moves), so there is no
+duplication concern.
 
 ## 9. Compatibility notes for other mod authors
 
@@ -542,3 +569,29 @@ compatible from the other mod's side.
 - Non-standard container-close handling. We assume the vanilla one-open-container-at-a-time model
   and standard close packets. A mod that drives multiple menus or sends non-standard close packets
   may interact with our stale-close guard. To be compatible: follow the vanilla container lifecycle.
+
+## 10. Optional third-party integrations
+
+Integrations with other mods are OPTIONAL and isolated, all following the same soft-dependency pattern: each lives in
+its own `client.compat` class, loaded behind a `FabricLoader.isModLoaded(...)` gate (registered from
+`ShulkerInventoryClient`), so its references to the other mod are never linked when that mod is absent. The other mod is
+a compile-only dependency (never bundled), pinned per Minecraft version in `build.gradle.kts` and listed under
+`suggests` in fabric.mod.json. The mod runs unchanged when none of these are present.
+
+### Litematica (schematic pick-block, 1.1.5)
+
+With Litematica installed, middle-clicking one of its schematic ghost blocks in Pocket-Build selects that block from the
+held shulker, or exits the mode and lets Litematica pick, mirroring the vanilla pick. The vanilla
+`MultiPlayerGameModePickMixin` does not fire here - Litematica consumes the schematic middle-click at malilib's mouse
+layer, above vanilla `MultiPlayerGameMode` - so the hook is Litematica's own `SchematicPickBlockEventHandler`:
+`LitematicaPickBlockCompat` implements `ISchematicPickBlockEventListener` and, on the pre-pick stage, runs the SAME
+`PocketBuildClient.handlePocketBuildPick` (section 8), returning `CANCEL` when the block was selected from the box and
+`SUCCESS` otherwise (so unrelated picks fall through to Litematica untouched). The compile-only dependency is Litematica
+plus malilib, from the Modrinth maven.
+
+- Upstream sticky-flag workaround (to be removed). `SchematicPickBlockEventHandler` never resets its private
+  `processingCancelled` flag (set false only in the constructor, true on a cancel, no setter), so the first `CANCEL` we
+  return would dead-lock every later schematic pick until a game restart. Until the upstream fix ships,
+  `onSchematicPickBlockCancelled` clears the flag by reflection, but ONLY when this mod was the canceller (`cancelledBy`
+  equals the listener name `builders-shulkers`), so it never disturbs another mod's cancel and becomes a no-op once
+  Litematica resets the flag itself. Reported upstream; drop `resetProcessingCancelled` once fixed.

@@ -25,6 +25,13 @@ Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
 
+### 1.1.5
+The mod now runs on Minecraft 26.2 as well as 26.1.2.
+
+If you also have Litematica installed, middle-clicking one of its schematic ghost blocks while in Pocket-Build selects that block from the shulker you are holding, the same way middle-clicking a real block does (if you do not have it in the box, it is picked from your inventory as usual).
+
+** **
+
 ### 1.1.4
 Shulker boxes added by other mods that hold more than the usual 27 slots no longer lose the items in those extra slots when opened through this mod. Only the first 27 slots are shown; the rest are left untouched.
 
