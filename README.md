@@ -5,9 +5,9 @@ down: open and rearrange it straight from your inventory like a chest, and place
 items from your hotbar while you build.
 
 ## Links
-Youtube showcase: https://www.youtube.com/watch?v=VknrkiXw_Fk
-CurseForge: https://www.curseforge.com/minecraft/mc-mods/builders-shulkers
-Modrinth: https://modrinth.com/mod/builders-shulkers
+- Youtube showcase: https://www.youtube.com/watch?v=VknrkiXw_Fk
+- CurseForge: https://www.curseforge.com/minecraft/mc-mods/builders-shulkers
+- Modrinth: https://modrinth.com/mod/builders-shulkers
 
 ## What you can do
 
