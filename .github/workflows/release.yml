@@ -70,22 +70,25 @@ jobs:
                     | sed -E 's#.*-fabric-(.+)\.jar$#\1#' | sort -u | sed ':a;N;$!ba;s/\n/ or /g')
           notes="$RUNNER_TEMP/notes.md"
           # Changelog body for this version: the lines between "### <version>" and its "** **" separator in README.md.
-          awk -v hdr="### $version" '$0==hdr{c=1;next} c&&$0=="** **"{exit} c{print}' README.md > "$notes"
+          # The $(...) capture strips trailing blank lines, so the footer always follows after exactly one blank line.
+          body=$(awk -v hdr="### $version" '$0==hdr{c=1;next} c&&$0=="** **"{exit} c{print}' README.md)
           # Invariant download/verify footer. <mc_version> is a literal placeholder the reader substitutes.
           {
-            printf '\n---\n\n'
+            printf '%s\n\n' "$body"
             printf 'Requires Minecraft %s with Fabric Loader, Fabric API, and Java 25. Put the jar for your Minecraft version (`builders-shulkers-%s-fabric-<mc_version>.jar`) and Fabric API in your `mods` folder.\n\n' "$mc_list" "$version"
             printf 'The jar is built on GitHub Actions from this tag and carries a signed SLSA build-provenance attestation:\n'
             printf '```\n'
             printf 'gh attestation verify builders-shulkers-%s-fabric-<mc_version>.jar --repo Moncef-dev/builders-shulkers\n' "$version"
             printf '```\n'
-          } >> "$notes"
+          } > "$notes"
           echo "----- composed notes -----"; cat "$notes"
           echo "NOTES_PATH=$notes" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: create the release with both jars
         uses: softprops/action-gh-release@v3
         with:
+          name: Builder's Shulkers ${{ env.RELEASE_VERSION }}
           body_path: ${{ env.NOTES_PATH }}
           files: ${{ steps.jars.outputs.paths }}
           prerelease: ${{ contains(github.ref_name, '-') }}
