@@ -1,6 +1,5 @@
 plugins {
     id("net.fabricmc.fabric-loom") version "1.16-SNAPSHOT"
-    `maven-publish`
 }
 
 val minecraftVersion = stonecutter.current.version
@@ -82,7 +81,6 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 java {
-    withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
 }
