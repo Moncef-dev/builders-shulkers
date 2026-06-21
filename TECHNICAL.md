@@ -1,11 +1,12 @@
-# Builder's Shulkers - Technical Documentation (v1.1.5)
+# Builder's Shulkers - Technical Documentation (v1.2.0)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.1.5.
+their scope, and known risks. Describes the state as shipped in v1.2.0.
 
 ## Environment
 
-- Loader: Fabric. Minecraft 26.1.2 and 26.2 (one source, both jars; see Multi-version build below). JDK 25.
+- Loader: Fabric. Minecraft 26.1.2 and 26.2 (one source, both jars; see Multi-version build below). The 26.1.2 jar
+  also runs on 26.1 and 26.1.1 (the whole 26.1.x family, via a widened dependency range). JDK 25.
 - Mappings: official Mojang names (MC 26.1+ ships deobfuscated), not Yarn.
 - Split source sets: `client` (rendering, input, screens) and `main` (registration,
   menu, networking). Client code is never called from common code.
@@ -39,8 +40,12 @@ close, supports switching between shulkers, plays the open/close sounds, and ani
 opening in the GUI, on the held item, and on dropped item entities. All item movement is
 server-authoritative.
 
-It also adds Pocket-Build mode (1.1.0): hold a shulker in the hotbar and Ctrl + right-click to place or use its
-selected content straight from the box, without putting it down (the mouse wheel picks the item). See section 8.
+It also adds Pocket-Build mode (1.1.0): hold a shulker in the hotbar and the modifier + right-click to place or use
+its selected content straight from the box, without putting it down (the mouse wheel picks the item). See section 8.
+
+1.2.0 adds three player-facing layers on top: server gamerules that turn the features on or off (section 9), a
+client cosmetic config screen and rebindable keybinds (section 10), and a three-way Pocket-Build lid effect that
+also hides the in-box content once the lid covers it (the Lid effect subsection of section 8).
 
 ## 1. Reuse of the vanilla ShulkerBoxMenu (no custom type)
 
@@ -146,6 +151,9 @@ open/close events (`RemoteShulkerAnimationPayload`) to the players who can see t
 same animation locally (`startOpeningRemote` / `startClosing`). The broadcast is gated on `ServerPlayNetworking.canSend`
 per viewer, so it is never sent to a vanilla client (no mod) or to a viewer that is mid-join. The initiator animates
 locally and is excluded; in singleplayer there are no other viewers, so it is a no-op and solo behavior is unchanged.
+On the VIEWER side, the client's "Multiplayer animations" setting (section 10) gates this: when off, the remote open is
+not started and the mirrored sound is not played, so the viewer sees and hears nothing of OTHER players' held shulkers
+(their own held box is unaffected).
 
 The animation is broadcast ALWAYS, not only when the box is held at the start: a viewer must hold the state so the lid
 is right whenever the box becomes visible (moved to the hotbar, or dropped) part-way through. The SOUND, by contrast,
@@ -214,8 +222,11 @@ Client (`builders-shulkers.client.mixins.json`):
   viewers (animation id, holder entity id, `ItemStack`), so they see the dissolving lid and the block inside it, not
   just the plain lid. Sent on enter, on every scroll, and after each placement, so the block updates as the holder
   builds and renders empty once a slot's last item is placed. Gated by `canSend` per viewer.
+- `GameRuleStatePayload` (S2C): the current values of the mod's two feature gamerules (`inventory_access`,
+  `pocket_build`), sent on join and on every change. Custom gamerules are NOT synced to the client automatically, so
+  the client caches them (`ClientGameRuleState`) to gate its own interception in step with the server (section 9).
 
-## 7. Known limitations and risks (v1.1.5)
+## 7. Known limitations and risks (v1.2.0)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -260,9 +271,10 @@ Client (`builders-shulkers.client.mixins.json`):
 
 ## 8. Pocket-Build mode (1.1.0)
 
-Hold a shulker in the hotbar and Ctrl + right-click to enter Pocket-Build mode; a plain right-click then places
-or uses the SELECTED CONTENT of the box, never the box itself, and the mouse wheel cycles the selection. It is
-server-authoritative, so nothing can be duplicated.
+Hold a shulker in the hotbar and the modifier + right-click (a rebindable keybind, default Left Control - see
+section 10) to enter Pocket-Build mode; a plain right-click then places or uses the SELECTED CONTENT of the box,
+never the box itself, and the mouse wheel cycles the selection. It is server-authoritative, so nothing can be
+duplicated.
 
 - Content-swap (the Vanilla+ core). Rather than re-implementing placement conditions (can-place, interact-vs-place,
   adventure-mode permissions, the place sound, orientation, the survival-only consume), the mod briefly swaps the
@@ -282,12 +294,18 @@ server-authoritative, so nothing can be duplicated.
   use-on packet swaps in the right content). `isActive` (key present) is kept distinct from `selectedSlot` (which
   returns -1 both for "not in the mode" and "in the mode with nothing selected"), so an empty selection places nothing
   instead of the box.
-- Input. `MouseHandlerScrollMixin` reroutes the wheel to move the selection to the first stack of the next/previous
-  DIFFERENT item, skipping over runs of the same item and any empty slots (cancelling the
-  vanilla hotbar scroll); `InventorySelectedSlotMixin` blocks the number-key slot change, scoped to the local player;
-  the off-hand swap key (F) is drained each client tick. The selection is synced to the server with
-  `PocketBuildSelectPayload`.
-- Exit conditions. The mode ends on: Ctrl + right-click again; opening any container UI; the held item ceasing to be a
+- Input. Entry/exit is the rebindable Pocket-Build modifier (a vanilla `KeyMapping`, default Left Control) held at the
+  right-click PRESS: read via `KeyMapping.isDown()` in `PocketBuildClient.handleUse` and gated on the press edge
+  (`rightClickReleased`), so pressing the modifier while right-click is ALREADY held (to sprint/sneak mid-build) does
+  not flip the mode and the held use PASSes to vanilla so the build keeps going; an unbound modifier is therefore a
+  per-client off switch. A separate, unbound "Toggle Pocket-Build" keybind enters/exits in ONE press (for controller /
+  mobile), fired on the `isDown()` rising edge (`requestToggle`) so holding it cannot re-fire. `MouseHandlerScrollMixin`
+  reroutes the wheel to move the selection to the first stack of the next/previous DIFFERENT item, skipping over runs of
+  the same item and any empty slots (cancelling the vanilla hotbar scroll); `InventorySelectedSlotMixin` blocks the
+  number-key slot change, scoped to the local player; the off-hand swap key (F) is drained each client tick. The
+  selection is synced to the server with `PocketBuildSelectPayload`. The keybinds are registered in
+  `BuildersShulkersKeybinds` (section 10).
+- Exit conditions. The mode ends on: the modifier + right-click again (or one press of the Toggle keybind); opening any container UI; the held item ceasing to be a
   shulker (dropped, cleared, replaced); the hotbar selection moving off the source slot; or the player dying
   (`isDeadOrDying`, so a keepInventory death - which neither drops the shulker nor opens a container - cannot leave the
   mode stuck through respawn). The pause menu, options and chat deliberately leave the mode running. Pick-block is a
@@ -301,8 +319,9 @@ server-authoritative, so nothing can be duplicated.
   openness on a quick re-enter; the server stamps the `animation_id` marker and broadcasts open/close, so the held
   shulker's lid animates in every render context and on other players' view of the holder. `beginHeldOpening` is
   shared with the inventory open path so the resume behaviour cannot diverge between the two modes.
-- Peek overlay and item name (client HUD). While Ctrl is held (after a short debounce, so the quick Ctrl + right-click
-  toggle never flashes it), `PocketBuildOverlay` draws the 27 contents as the actual vanilla shulker-box container
+- Peek overlay and item name (client HUD). While the Peek key is held (a rebindable keybind, default Left Control; after
+  a short debounce, so the quick modifier + right-click toggle never flashes it), `PocketBuildOverlay` draws the 27
+  contents as the actual vanilla shulker-box container
   interface above the hotbar (through the mod's `GuiGraphicsExtractor`), with the selected slot under the vanilla
   container hover highlight. Each item is drawn with vanilla's own `itemDecorations` (count, durability bar, cooldown
   overlay), so every slot subtlety appears exactly as in any container, instead of being redrawn by hand (1.1.1).
@@ -334,10 +353,11 @@ chest interaction whenever a non-usable item was selected.
   minecarts, end crystals, spawn eggs, leads, flint and steel, fire charge, ender eye, bone meal. These are all
   entities, fluids or tool-style uses - consistent with "build, not interact" - so they are intentionally out of scope.
   (`powder_snow_bucket` is a `BlockItem` and is allowed, since it places a block.)
-- Perspective - a gamerule (off by default) is planned to widen the rule to "use any item exactly as if it were in the
-  hotbar". Instant uses already emerge from the content-swap (placing, buckets, fire, throwing); continuous uses
-  (eating, drinking, drawing a bow) need the content to stay in hand for the use's whole duration, which the current
-  instantaneous swap does not do - that is the open design question for the gamerule.
+- Perspective - a further "use items" gamerule (off by default, separate from the 1.2.0 feature toggles in section 9) is
+  planned to widen the rule to "use any item exactly as if it were in the hotbar". Instant uses already emerge from the
+  content-swap (placing, buckets, fire, throwing); continuous uses (eating, drinking, drawing a bow) need the content to
+  stay in hand for the use's whole duration, which the current instantaneous swap does not do - that is the open design
+  question for that gamerule.
 
 ### Content rendering: the selected content inside the box (1.1.1)
 
@@ -454,23 +474,42 @@ Minecraft's item-render categories and their exceptions evolve, some of those ha
 through the generic path and fold back into it. Any future change that removes a special case or a concession WITHOUT a
 regression will be adopted.
 
-### Lid dissolve (1.1.1)
+### Lid effect: dissolve, disappear, or solid; position decoupled from effect (dissolve 1.1.1, three-way + decoupling 1.2.0)
 
-As a Pocket-Build shulker opens, its lid DISSOLVES away instead of only lifting, so it stops hiding the content
-composed inside the box.
+As a Pocket-Build shulker opens, its lid clears so it stops hiding the content composed inside the box. HOW it clears
+is a client option, "Pocket-Build lid effect" (section 10), with three values; and it is DECOUPLED from how the lid
+MOVES, so the two are set independently.
 
-- Why a dissolve and not a translucent fade: a true alpha fade cannot be ordered correctly here. The content is drawn
-  in the item render pass and the lid in the model-translucent pass; the two are composited in an order that is fixed
-  by the engine and differs by context (the content draws in front of a faded lid in some contexts, the faded lid
-  masks the content in others). Translucent blending is order-dependent and that order is not controllable across the
-  item/model pass boundary, so a fade was abandoned.
-- The dissolve reuses the vanilla `entityCutoutDissolve` render type (the Ender Dragon death effect):
-  `ShulkerBoxLidFadeMixin` (`@WrapOperation` on the lid model submit) draws the base opaque and the lid with this
-  render type, tinted `ARGB.white(1 - openness)`. The shader discards a texel when `(1 - openness)` falls below that
-  texel's threshold in a mask texture. Cutout WRITES depth and never blends, so it is ORDER-INDEPENDENT: the opaque
-  content shows through the holes in every context, and nothing behind the shulker (water, clouds) is masked through
-  them - the exact two failures a real fade could not avoid.
-- The mask is generated at runtime (`DissolveMask`), not shipped as a file. The shader reads ONLY the mask's alpha
+- Position vs effect. The lid POSITION is the `openness` arg (`ShulkerBoxOpennessMixin`, `@ModifyArg`): it lifts with
+  the animation progress when "Pocket-Build animations" is on, otherwise it freezes at the resting lid STATE (open = 1
+  or closed = 0, the "Pocket-Build lid state" option). The EFFECT (dissolve / disappear) is driven SEPARATELY, from the
+  animation's RAW progress and lifecycle status, published as render-thread fields by the openness override
+  (`currentDissolveProgress`, `currentRenderStatus`, `currentLidOpenness`); so the lid can dissolve while it no longer
+  lifts ("dissolve without moving"), or vanish instantly while staying in place. The same position logic (animation
+  toggle, resting lid state, instant close below) also drives the INVENTORY-open lid through its own "Inventory
+  animations" / "Inventory lid state" options; only the dissolve/disappear EFFECT is Pocket-Build-only.
+- The three effects (`ShulkerBoxLidFadeMixin`, `@WrapOperation` on the lid model submit; applied only to the live
+  Pocket-Build lid, never a placed shulker):
+  - NONE: the original single opaque submit - the lid is solid and just lifts or stays per the position above.
+  - DISSOLVE: the base is drawn opaque and the lid with the vanilla `entityCutoutDissolve` render type (the Ender
+    Dragon death effect), tinted `ARGB.white(1 - progress)`. The shader discards a texel when `(1 - progress)` falls
+    below that texel's threshold in a mask texture. Cutout WRITES depth and never blends, so it is ORDER-INDEPENDENT:
+    the opaque content shows through the holes in every context, and nothing behind the shulker (water, clouds) is
+    masked through them - the exact two failures a real translucent fade could not avoid (a fade is composited across
+    the item/model pass boundary in a context-dependent order the engine fixes, so it was abandoned).
+  - DISAPPEAR: the lid is submitted opaque (a plain `entityCutout`, identical to a vanilla closed lid) ONLY while the
+    status is CLOSING, and not submitted at all while opening/open - a draw-call on/off keyed on the lifecycle status,
+    NEVER a translucent pass, so it cannot mask anything behind it either. It vanishes the instant opening starts and
+    reappears the instant closing starts (instant both ways, independent of the lift).
+- Instant close when the lift is off. With "Pocket-Build animations" (or "Inventory animations") off, the close no
+  longer lingers at the resting state for the whole ~10-tick drain: the openness override snaps the position to 0 on
+  the FIRST frame of the close (CLOSING status), while the effect still plays its own transition on top.
+- Content hidden once the lid covers it. The in-box content is skipped while the lid is at the closed position AND
+  opaque: the content layer's submit is cancelled (`LayerRenderStateContentMixin` + `contentCoveredByClosedLid`,
+  reading the published openness, dissolve progress, effect, and status). So a solid closed lid hides the content
+  (otherwise a tall flat content - a boat - would poke out of a visually-closed box for the whole close drain), while
+  Dissolve/Disappear still REVEAL the content from a closed lid position, because the lid is not opaque there.
+- The dissolve mask is generated at runtime (`DissolveMask`), not shipped as a file. The shader reads ONLY the mask's alpha
   (at the lid's UVs), so the mask is a 512x512 texture whose alpha is filled from a per-texel integer hash - an even,
   uncorrelated spread of thresholds (white noise) - with RGB left unused. The exact pattern never mattered, only that
   the thresholds are uniform, so a deterministic hash replaces a stored 512x512 RGBA PNG (three dead channels and
@@ -522,11 +561,63 @@ it through the shared `PocketBuildClient.handlePocketBuildPick`, which decides:
 - Priority 3 (unchanged): nowhere at all -> STAY in the mode and do nothing. The vanilla pick is a no-op, so there is no
   slot change to desync.
 
-`handlePocketBuildPick` (and `selectContentMatching`) are shared with the Litematica schematic pick (section 10), so the
+`handlePocketBuildPick` (and `selectContentMatching`) are shared with the Litematica schematic pick (section 12), so the
 two pick paths behave identically. The box selection is purely client-side state (no item moves), so there is no
 duplication concern.
 
-## 9. Compatibility notes for other mod authors
+## 9. Server gamerules (feature toggles)
+
+Two server gamerules let an admin turn the mod's features on or off per world; both default TRUE, so installing the
+mod changes nothing until someone opts out. They are registered through Fabric's `GameRuleBuilder` (`ModGameRules`),
+so they are real, namespaced, vanilla gamerules - `builders-shulkers:inventory_access` and
+`builders-shulkers:pocket_build` - that appear under `/gamerule builders-shulkers:...` and in the world-options
+gamerule list.
+
+- `inventory_access`: gates opening a shulker from the inventory. Checked server-side before handling
+  `OpenShulkerPayload` (`ModGameRules.inventoryAccess`); the client gates its own click interception on the synced
+  cache (below) so prediction matches.
+- `pocket_build`: gates entering Pocket-Build. Checked server-side before accepting a `PocketBuildModePayload` enter,
+  and client-side before the local enter.
+- Force-exit on disable. Turning a rule OFF mid-session closes the live sessions: a `GameRuleEvents.changeCallback`
+  closes any open inventory-shulker menu (`closeAndReturnToInventory`) when `inventory_access` goes off and clears
+  Pocket-Build server state when `pocket_build` goes off; the client exits Pocket-Build on receiving the synced OFF
+  value.
+- Client sync. Custom gamerules are NOT synced to the client by vanilla, so the server sends `GameRuleStatePayload`
+  (section 6) on join and on every change; it is cached in `ClientGameRuleState` and reset on disconnect. The client's
+  own interception (the open-click mixin, the Pocket-Build enter) reads this cache, so client prediction never fires
+  for a feature the server has disabled.
+
+## 10. Client configuration and keybinds
+
+All cosmetic, client-side options live here. They never touch item movement or feature availability (those are the
+server gamerules, section 9); nothing is sent to the server and a 1.2.0 client never desyncs another.
+
+- Config store. `ClientConfig` is a Gson JSON file in the config directory (`builders-shulkers.json`), every field
+  defaulting to the prior 1.1.x behaviour (all on; lid effect Dissolve; count scale 0.8). Loaded on client init,
+  harvested and saved when the settings screen closes.
+- Settings screen. `BuildersShulkersSettingsScreen extends OptionsSubScreen`, so it looks and behaves exactly like a
+  vanilla options sub-screen (scrollable `OptionsList`, a Done button). Ten options over five rows: the inventory and
+  Pocket-Build lid animations; the inventory and Pocket-Build resting lid state (Open/Closed); the Pocket-Build lid
+  effect (None/Dissolve/Disappear, an `OptionInstance` enum cycle); Pocket-Build in-box item rendering; open/close
+  sounds; "Multiplayer animations" (the viewer-side gate on other players' held shulkers - animation AND sound,
+  section 4); show item count; and the item-count scale (a custom `AbstractSliderButton`). Cross-version: the boolean
+  toggles use `createBoolean`'s 2-/3-arg overloads, and the enum / Open-Closed options use the multi-arg constructor
+  with a no-op listener that target-types to either 26.1.2's `Consumer` or 26.2's `ValueUpdateListener`, so one source
+  compiles on both.
+- Where the options are read: the lid animation/state/effect options drive `ShulkerBoxOpennessMixin` and
+  `ShulkerBoxLidFadeMixin` (the Lid effect subsection of section 8); "Multiplayer animations" gates the remote
+  animation start and the mirrored sound in `ShulkerInventoryClient` (section 4); the rest gate the in-box content
+  render, the open/close sounds (`ClientShulkerSession`), and the hotbar count draw + scale
+  (`GuiSelectedContentDecorationsMixin`).
+- Keybinds (`BuildersShulkersKeybinds`, registered through Fabric's `KeyMappingHelper` under a "Builder's Shulkers"
+  `KeyMapping.Category`): Open Settings (default B), the Pocket-Build modifier (default Left Control), Toggle
+  Pocket-Build (UNBOUND by default), and Peek (default Left Control). The two HELD bindings (modifier, peek) are polled
+  via `KeyMapping.isDown()` by `PocketBuildClient`, so an unbound one is a clean per-client off switch (false isDown
+  disables modifier + right-click entry, or hides the overlay) with no extra config option. Open Settings and Toggle
+  act on the press; Toggle fires on the `isDown()` rising edge so holding it cannot re-fire. The Pocket-Build input
+  flow, including the press-edge order fix, is in section 8.
+
+## 11. Compatibility notes for other mod authors
 
 This mod is built to be a good vanilla citizen, but it relies on a few vanilla contracts. If
 another mod breaks one of these, interop may suffer. Below: what could clash, and how to stay
@@ -570,7 +661,7 @@ compatible from the other mod's side.
   and standard close packets. A mod that drives multiple menus or sends non-standard close packets
   may interact with our stale-close guard. To be compatible: follow the vanilla container lifecycle.
 
-## 10. Optional third-party integrations
+## 12. Optional third-party integrations
 
 Integrations with other mods are OPTIONAL and isolated, all following the same soft-dependency pattern: each lives in
 its own `client.compat` class, loaded behind a `FabricLoader.isModLoaded(...)` gate (registered from

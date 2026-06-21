@@ -20,7 +20,7 @@ items from your hotbar while you build.
 
 ### Build from a shulker in your hotbar (Pocket-Build)
 - Hold a shulker box in your hotbar and Ctrl + right-click to enter Pocket-Build mode, instead of placing the box.
-- Scroll the mouse wheel to pick a block inside the box; its name shows above your hotbar, its count shows on the slot, and the box opens with a dissolving lid that reveals the selected block drawn inside it.
+- Scroll the mouse wheel to select the previous/next different block inside the box; its name shows above your hotbar, its count shows on the slot, and the box opens with a dissolving lid that reveals the selected block drawn inside it.
 - Middle-click a block you already have in the box to select it straight away; if it is not in the box, middle-click takes it from your inventory as usual.
 - Right-click to place that block straight from the box - on the ground, into an item frame, and so on - while the box stays in your hand. The block drawn inside the box follows it in your hand and on the ground.
 - Pocket-Build places blocks; a non-block selection does nothing, so the box stays a pocket of building blocks.
@@ -28,7 +28,25 @@ items from your hotbar while you build.
 
 Everything is handled by the server, so your items can never be duplicated.
 
+### Customization
+- Press B (rebindable) to open the settings screen and tune the cosmetics: lid animations, the lid effect (dissolve, disappear, or stay solid), the block drawn inside the box and its count, the open/close sounds, and more.
+- Every control lives in Options -> Controls under "Builder's Shulkers" and can be rebound or unbound: the Pocket-Build hold key (default Left Control), a peek key (default Left Control), and a single-press "Toggle Pocket-Build" (unbound by default) to enter and leave the mode with one button (handy on a controller or on touch).
+- Server admins can turn the access from inventory and Pocket-Build features on or off with gamerules.
+
 ## Versions
+
+### 1.2.0
+**A settings screen.** Press B (rebindable) to open Builder's Shulkers settings and tune the look and feel: turn the inventory and Pocket-Build lid animations on or off, choose how the Pocket-Build lid clears (dissolve, vanish, or a plain solid lid), show or hide the block rendered inside the box and its count, resize the item count, toggle the open/close sounds, and enable/disable other player's shulker animations in multiplayer.
+
+**Rebindable controls.** Every control now lives in Options -> Controls under "Builder's Shulkers" and can be rebound or unbound: the Pocket-Build hold key (default Left Control), a peek key (default Left Control), and a single-press "Toggle Pocket-Build" (unbound by default) so you can enter and leave the mode with one button (handy for a controller or on touch).
+
+**Server gamerules.** Admins can switch the access from inventory and Pocket-Build features on or off per world.
+
+**Wider version support.** The 26.1.2 build now also runs on Minecraft 26.1 and 26.1.1.
+
+Pocket-Build now enters and leaves only on the actual right-click, so pressing the hold key while right click is pressed no longer flips the mode.
+
+** **
 
 ### 1.1.5
 The mod now runs on Minecraft 26.2 as well as 26.1.2.
