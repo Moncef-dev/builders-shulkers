@@ -32,8 +32,10 @@ import net.minecraft.world.level.Level;
 public final class PocketBuildClient {
 	private PocketBuildClient() {}
 
-	// The modifier + right-click toggle re-arms only after the right-click has been physically released, so holding it
-	// down cannot flip-flop the mode.
+	// True while a fresh right-click press is still available to act on: the tick handler sets it when right-click is
+	// released, and handleUse consumes it on the next use. The modifier + right-click enter/exit fires only on this
+	// press edge, so pressing the modifier while right-click is already held (to sprint / sneak mid-build) never flips
+	// the mode, and holding it down cannot flip-flop.
 	private static boolean rightClickReleased = true;
 	// The peek contents overlay only appears after the Peek key has been held this many ticks, so a quick
 	// modifier + right-click toggle (which holds the key briefly) never flashes the overlay before the mode opens/closes.
@@ -124,29 +126,31 @@ public final class PocketBuildClient {
 			return InteractionResult.PASS;
 		}
 		boolean modifier = BuildersShulkersKeybinds.isPocketBuildModifierDown();
+		// The press EDGE: true only on the first use since right-click was released. Consumed every call, so the modifier
+		// must be held AT the right-click press to act - pressing it while right-click is already held (e.g. to sprint /
+		// sneak mid-build) no longer enters/exits the mode.
+		boolean pressEdge = rightClickReleased;
+		rightClickReleased = false;
 
 		if (PocketBuildMode.isActive()) {
-			// Modifier + right-click exits the mode (and cancels the use); a plain right-click PASSes to the vanilla flow.
-			if (modifier) {
-				if (rightClickReleased) {
-					exitMode();
-					rightClickReleased = false;
-				}
+			// Exit (and cancel the use) only on a fresh modifier + right-click press; otherwise PASS, so a plain
+			// right-click - or holding right-click while the modifier happens to be down - keeps placing the content.
+			if (modifier && pressEdge) {
+				exitMode();
 				return InteractionResult.FAIL;
 			}
 			return InteractionResult.PASS;
 		}
 
-		// Enter only on a fresh modifier + right-click with a shulker in hand, every menu closed, and a server that runs
-		// the mod (so it can validate the placement server-authoritatively). Otherwise leave vanilla alone.
+		// Enter (and cancel the vanilla shulker place) only on a fresh modifier + right-click press with a shulker in
+		// hand, every menu closed, and a server that runs the mod (so it can validate the placement
+		// server-authoritatively). Otherwise leave vanilla alone, so a plain right-click places the shulker and holding
+		// right-click then pressing the modifier does not enter mid-build.
 		ItemStack held = player.getMainHandItem();
-		if (modifier && ShulkerContents.isShulker(held)
+		if (modifier && pressEdge && ShulkerContents.isShulker(held)
 				&& mc.gui.screen() == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)
 				&& ClientGameRuleState.pocketBuild()) {
-			if (rightClickReleased) {
-				enterMode(player, held);
-				rightClickReleased = false;
-			}
+			enterMode(player, held);
 			return InteractionResult.FAIL;
 		}
 		return InteractionResult.PASS;
