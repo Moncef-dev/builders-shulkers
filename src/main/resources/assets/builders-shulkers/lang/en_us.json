@@ -1,6 +1,9 @@
 {
 	"key.category.builders-shulkers.main": "Builder's Shulkers",
 	"key.builders-shulkers.open_settings": "Open Settings",
+	"key.builders-shulkers.pocket_build_modifier": "Pocket-Build (hold + Place Block)",
+	"key.builders-shulkers.pocket_build_toggle": "Toggle Pocket-Build",
+	"key.builders-shulkers.peek": "Peek shulker contents",
 
 	"screen.builders-shulkers.settings.title": "Builder's Shulkers Settings",
 	"screen.builders-shulkers.settings.inventory_animation": "Inventory animations",

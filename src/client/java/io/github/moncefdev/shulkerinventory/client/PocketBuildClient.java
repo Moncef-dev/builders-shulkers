@@ -1,6 +1,5 @@
 package io.github.moncefdev.shulkerinventory.client;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
@@ -20,31 +19,31 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import org.lwjgl.glfw.GLFW;
 
 // Pocket-Build: place a shulker's selected content from the hotbar, without ever placing the shulker.
 //
-// Ctrl + right-click with a shulker selected in the hotbar and every menu closed enters the mode INSTEAD of placing
-// the shulker (works on a block, on air, or on an entity, so all three use events route through here). While in the
-// mode, a PLAIN right-click runs the vanilla use/interact flow on the SELECTED CONTENT (the content-swap mixins put
-// it briefly in hand), server-authoritative so nothing can be duplicated. The mouse wheel cycles the selected slot.
-// Ctrl + right-click again exits; so does opening a container, dropping the shulker, moving the hotbar selection,
+// The Pocket-Build modifier + right-click with a shulker selected in the hotbar and every menu closed enters the mode
+// INSTEAD of placing the shulker (works on a block, on air, or on an entity, so all three use events route through
+// here); the unbound "Toggle Pocket-Build" keybind enters/exits in one press (for controller / mobile). While in the
+// mode, a PLAIN right-click runs the vanilla use/interact flow on the SELECTED CONTENT (the content-swap mixins put it
+// briefly in hand), server-authoritative so nothing can be duplicated. The mouse wheel cycles the selected slot. The
+// modifier + right-click again exits; so does opening a container, dropping the shulker, moving the hotbar selection,
 // dying, or a pick-block (middle-click).
 public final class PocketBuildClient {
 	private PocketBuildClient() {}
 
-	// The Ctrl + right-click toggle re-arms only after the right-click has been physically released, so holding it
+	// The modifier + right-click toggle re-arms only after the right-click has been physically released, so holding it
 	// down cannot flip-flop the mode.
 	private static boolean rightClickReleased = true;
-	// The Ctrl peek contents overlay only appears after Ctrl has been held this many ticks, so a quick Ctrl +
-	// right-click toggle (which holds Ctrl briefly) never flashes the overlay before the mode opens/closes.
+	// The peek contents overlay only appears after the Peek key has been held this many ticks, so a quick
+	// modifier + right-click toggle (which holds the key briefly) never flashes the overlay before the mode opens/closes.
 	private static final int PEEK_DELAY_TICKS = 5;
-	private static int ctrlHeldTicks = 0;
+	private static int peekHeldTicks = 0;
 
-	// Whether the Ctrl-peek contents overlay should be shown right now: in Pocket-Build mode with Ctrl held past the
+	// Whether the peek contents overlay should be shown right now: in Pocket-Build mode with the Peek key held past the
 	// debounce window. Read by PocketBuildOverlay.
 	public static boolean peekVisible() {
-		return PocketBuildMode.isActive() && ctrlHeldTicks >= PEEK_DELAY_TICKS;
+		return PocketBuildMode.isActive() && peekHeldTicks >= PEEK_DELAY_TICKS;
 	}
 
 	public static void register() {
@@ -102,13 +101,13 @@ public final class PocketBuildClient {
 			// Keep the content drawn inside the box in sync with the scroll selection; it stays frozen on the
 			// animation through the close (where the mode is already inactive).
 			ClientShulkerSession.setPocketBuildContent(PocketBuildMode.animationId(), PocketBuildMode.selectedStack(held));
-			// Debounce the Ctrl peek: count how long Ctrl has been held continuously. A quick Ctrl + right-click
-			// toggle holds Ctrl only briefly, so it never reaches the threshold and the contents overlay never
-			// flashes before the mode closes; a deliberate peek (sustained Ctrl) does show it.
-			if (InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)) {
-				ctrlHeldTicks++;
+			// Debounce the peek: count how long the Peek key has been held continuously. A quick modifier + right-click
+			// toggle holds it only briefly, so it never reaches the threshold and the contents overlay never flashes
+			// before the mode closes; a deliberate peek (sustained hold) does show it.
+			if (BuildersShulkersKeybinds.isPeekDown()) {
+				peekHeldTicks++;
 			} else {
-				ctrlHeldTicks = 0;
+				peekHeldTicks = 0;
 			}
 		});
 	}
@@ -124,11 +123,11 @@ public final class PocketBuildClient {
 		if (!world.isClientSide() || hand != InteractionHand.MAIN_HAND || player != mc.player) {
 			return InteractionResult.PASS;
 		}
-		boolean ctrl = InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL);
+		boolean modifier = BuildersShulkersKeybinds.isPocketBuildModifierDown();
 
 		if (PocketBuildMode.isActive()) {
-			// Ctrl + right-click exits the mode (and cancels the use); a plain right-click PASSes to the vanilla flow.
-			if (ctrl) {
+			// Modifier + right-click exits the mode (and cancels the use); a plain right-click PASSes to the vanilla flow.
+			if (modifier) {
 				if (rightClickReleased) {
 					exitMode();
 					rightClickReleased = false;
@@ -138,10 +137,10 @@ public final class PocketBuildClient {
 			return InteractionResult.PASS;
 		}
 
-		// Enter only on a fresh Ctrl + right-click with a shulker in hand, every menu closed, and a server that runs
+		// Enter only on a fresh modifier + right-click with a shulker in hand, every menu closed, and a server that runs
 		// the mod (so it can validate the placement server-authoritatively). Otherwise leave vanilla alone.
 		ItemStack held = player.getMainHandItem();
-		if (ctrl && ShulkerContents.isShulker(held)
+		if (modifier && ShulkerContents.isShulker(held)
 				&& mc.gui.screen() == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)
 				&& ClientGameRuleState.pocketBuild()) {
 			if (rightClickReleased) {
@@ -154,9 +153,9 @@ public final class PocketBuildClient {
 	}
 
 	private static void enterMode(Player player, ItemStack held) {
-		// Restart the Ctrl-peek debounce from zero, so opening the mode (a Ctrl + right-click that holds Ctrl briefly)
+		// Restart the peek debounce from zero, so opening the mode (a modifier + right-click that holds the key briefly)
 		// does not immediately flash the contents overlay, just like the exit case.
-		ctrlHeldTicks = 0;
+		peekHeldTicks = 0;
 		int slot = player.getInventory().getSelectedSlot();
 		// Begin the lid opening, resuming from the shulker's current openness (shared with the inventory open mode via
 		// ClientShulkerSession.beginHeldOpening), so a quick re-enter continues from where the closing lid is instead
@@ -181,6 +180,25 @@ public final class PocketBuildClient {
 		}
 		ClientShulkerSession.startClosing(id);
 		ClientShulkerSession.playOwnSound(false);
+	}
+
+	// Single-key Pocket-Build entry/exit for the "Toggle Pocket-Build" keybind: exit when active, otherwise enter when a
+	// shulker is selected in the hotbar and every menu is closed on a server that runs the mod (the same conditions as
+	// the modifier + right-click path). A one-press path for controller / mobile; the modifier + right-click is unchanged.
+	public static void requestToggle() {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null) {
+			return;
+		}
+		if (PocketBuildMode.isActive()) {
+			exitMode();
+			return;
+		}
+		ItemStack held = mc.player.getMainHandItem();
+		if (ShulkerContents.isShulker(held) && mc.gui.screen() == null
+				&& ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE) && ClientGameRuleState.pocketBuild()) {
+			enterMode(mc.player, held);
+		}
 	}
 
 	// Select the content matching `pick` inside the held shulker and sync the new selection to the server (like a
