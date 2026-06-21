@@ -28,6 +28,9 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		// Load the client cosmetic settings (animations, dissolve, sounds, ...) from the config directory.
+		ClientConfig.load();
+
 		// When the server ends a shulker session, it asks us to restore the player's own inventory screen.
 		ClientPlayNetworking.registerGlobalReceiver(OpenPlayerInventoryPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> {
@@ -106,6 +109,9 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 
 		// Pocket-Build: Ctrl + right-click a held shulker to enter/exit the block-placement mode.
 		PocketBuildClient.register();
+
+		// Settings keybind (Options -> Controls -> Builder's Shulkers): default B, opens the settings screen in-game.
+		BuildersShulkersKeybinds.register();
 
 		// Optional Litematica interop: middle-clicking a schematic ghost block while pocket-building selects the
 		// matching content from the held shulker instead of letting Litematica swap the shulker away. Gated on

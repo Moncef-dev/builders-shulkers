@@ -12,6 +12,7 @@ stonecutter active "26.2" /* [SC] DO NOT EDIT */
 stonecutter parameters {
     replacements {
         string(current.parsed < "26.2") { replace("mc.gui.screen()", "mc.screen") }
+        string(current.parsed < "26.2") { replace("mc.gui.setScreen(", "mc.setScreen(") }
         string(current.parsed < "26.2") { replace("context.client().gui.setScreen(", "context.client().setScreen(") }
         string(current.parsed < "26.2") { replace("@Mixin(Hud.class)", "@Mixin(Gui.class)") }
         string(current.parsed < "26.2") { replace("import net.minecraft.client.gui.Hud;", "import net.minecraft.client.gui.Gui;") }
