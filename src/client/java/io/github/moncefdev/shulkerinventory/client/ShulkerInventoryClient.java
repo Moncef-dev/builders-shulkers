@@ -48,13 +48,15 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(RemoteShulkerAnimationPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> {
 				if (payload.opening()) {
-					ClientShulkerSession.startOpeningRemote(payload.animationId(), payload.holderEntityId());
+					if (ClientConfig.get().otherPlayerAnimations) {
+						ClientShulkerSession.startOpeningRemote(payload.animationId(), payload.holderEntityId());
+					}
 				} else {
 					ClientShulkerSession.startClosing(payload.animationId());
 				}
 				// Drain the animation either way, but only play the sound when the broadcast asked for it (a close
 				// caused by disturbing the source shulker is silent: the box just vanished for this viewer).
-				if (payload.playSound()) {
+				if (payload.playSound() && ClientConfig.get().otherPlayerAnimations) {
 					playRemoteSound(context.client(), payload.holderEntityId(), payload.opening());
 				}
 			});
