@@ -4,13 +4,16 @@ plugins {
 
 val minecraftVersion = stonecutter.current.version
 
-// Per-version dependency pins, keyed on the active Minecraft version (one entry per supported version):
-// [Fabric Loader, Fabric API, Litematica (Modrinth version), malilib (Modrinth version)]. The mod dependency range is
-// the patch-family of the active version (e.g. ~26.2 = >=26.2 <26.3).
-val minecraftDep = "~$minecraftVersion"
-val (loaderVersion, fabricApiVersion, litematicaVersion, malilibVersion) = when (minecraftVersion) {
-    "26.1.2" -> listOf("0.19.2", "0.150.0+26.1.2", "0.27.6", "0.28.6")
-    "26.2" -> listOf("0.19.3", "0.152.1+26.2", "0.28.0", "0.29.0")
+// Per-version pins, keyed on the active Minecraft version (one entry per build target):
+// [Fabric Loader, Fabric API, Litematica (Modrinth version), malilib (Modrinth version), mod dependency range].
+// The range is normally the patch-family of the active version (e.g. ~26.2 = >=26.2.0 <26.3.0). The 26.1.2 jar
+// widens to ~26.1 (>=26.1.0 <26.2.0) because it also runs on 26.1 and 26.1.1: those patches change no class the mod
+// touches (verified by bytecode diff - only DetectedVersion/SharedConstants and an unrelated method-body change in
+// ServerGamePacketListenerImpl, whose handleContainerClose signature is unchanged), so one jar covers the whole 26.1.x
+// family. Each build still COMPILES against its exact minecraftVersion; the range only widens the runtime metadata.
+val (loaderVersion, fabricApiVersion, litematicaVersion, malilibVersion, minecraftDep) = when (minecraftVersion) {
+    "26.1.2" -> listOf("0.19.2", "0.150.0+26.1.2", "0.27.6", "0.28.6", "~26.1")
+    "26.2" -> listOf("0.19.3", "0.152.1+26.2", "0.28.0", "0.29.0", "~26.2")
     else -> error("Unconfigured Minecraft version: $minecraftVersion")
 }
 
