@@ -9,6 +9,7 @@ import io.github.moncefdev.shulkerinventory.network.PocketBuildRemoteContentPayl
 import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
 import io.github.moncefdev.shulkerinventory.network.GameRuleStatePayload;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.gamerule.v1.GameRuleEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -40,6 +41,28 @@ public class ShulkerInventory implements ModInitializer {
 		// Feature toggles exposed as vanilla game rules (default true). Their values are synced to clients (on join and
 		// on change) so the client can gate its own interception, since custom game rules are not synced automatically.
 		ModGameRules.register(ShulkerInventory::broadcastGameRuleState);
+
+		// When a feature's game rule is turned OFF, force every connected client out of that feature's active state.
+		// Inventory access: close any open shulker menu server-authoritatively (this saves the contents and reopens the
+		// player's own inventory on the client). Pocket-Build: clear the server-side mode state so no in-flight content
+		// swap goes through; the client leaves the mode itself when it receives the new state (see ShulkerInventoryClient,
+		// the held shulker has no menu to drive the close).
+		GameRuleEvents.changeCallback(ModGameRules.INVENTORY_ACCESS).register((value, server) -> {
+			if (!value) {
+				for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+					if (player.containerMenu instanceof InventoryShulkerBoxMenu menu) {
+						menu.closeAndReturnToInventory(player);
+					}
+				}
+			}
+		});
+		GameRuleEvents.changeCallback(ModGameRules.POCKET_BUILD).register((value, server) -> {
+			if (!value) {
+				for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+					PocketBuildServerState.exit(player.getUUID());
+				}
+			}
+		});
 
 		// Open handler: validate the slot, toggle closed if this shulker is already open, otherwise copy the
 		// stack's CONTAINER component into a working container and open a vanilla shulker menu bound to it.

@@ -71,7 +71,14 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 		// Cache the server's mod game-rule state (custom rules are not synced automatically), so the client can gate its
 		// own interception in step with the server (see ClientGameRuleState). Sent on join and on every change.
 		ClientPlayNetworking.registerGlobalReceiver(GameRuleStatePayload.TYPE, (payload, context) ->
-				context.client().execute(() -> ClientGameRuleState.set(payload.inventoryAccess(), payload.pocketBuild())));
+				context.client().execute(() -> {
+					ClientGameRuleState.set(payload.inventoryAccess(), payload.pocketBuild());
+					// If Pocket-Build was just disabled server-side, leave the mode locally (the held shulker has no menu
+					// for the server to close; the open-inventory case is handled by the server closing the menu).
+					if (!payload.pocketBuild() && PocketBuildMode.isActive()) {
+						PocketBuildClient.exitMode();
+					}
+				}));
 
 		// When joining a server that does NOT run this mod, tell the player once why opening shulker boxes from the
 		// inventory will not work here, so a dead right-click does not leave them confused. The check is deferred a
