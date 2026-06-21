@@ -2,6 +2,7 @@ package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
+import io.github.moncefdev.shulkerinventory.client.ClientConfig;
 import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildContentLayer;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildContentRender;
@@ -101,6 +102,10 @@ public abstract class PocketBuildContentLayerMixin {
 			for (int i = 0; i < boxLayerCount; i++) {
 				shulkerInventory$separateAnimatedBoxModel(boxLayers[i], id);
 			}
+		}
+		// Client setting: render the in-box content only when "show items" is on (the box still renders and animates).
+		if (!ClientConfig.get().inBoxContent) {
+			return;
 		}
 		ItemStack content = ClientShulkerSession.getPocketBuildContent(id);
 		if (content.isEmpty()) {

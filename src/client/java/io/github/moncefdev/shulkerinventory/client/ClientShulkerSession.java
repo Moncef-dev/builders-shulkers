@@ -187,6 +187,10 @@ public final class ClientShulkerSession {
 	// Shared by the opener's own sound and the broadcast sound played for OTHER players' held shulkers, so the two
 	// can never drift apart.
 	public static void playShulkerSound(Level level, Entity at, boolean opening) {
+		// Client setting: mute the open/close sounds (own and other players') when disabled.
+		if (!ClientConfig.get().openCloseSounds) {
+			return;
+		}
 		level.playLocalSound(at,
 				opening ? SoundEvents.SHULKER_BOX_OPEN : SoundEvents.SHULKER_BOX_CLOSE,
 				SoundSource.BLOCKS, 0.5f, level.getRandom().nextFloat() * 0.1f + 0.9f);

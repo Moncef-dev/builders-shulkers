@@ -1,6 +1,7 @@
 package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
+import io.github.moncefdev.shulkerinventory.client.ClientConfig;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildMode;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -21,16 +22,17 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 // its RIGHT EDGE so it reads smaller while staying right-aligned in the corner.
 @Mixin(Hud.class)
 public abstract class GuiSelectedContentDecorationsMixin {
-	// The selected content's count is drawn at this fraction of normal hotbar size.
-	private static final float SELECTED_COUNT_SCALE = 0.8f;
-
 	@Redirect(method = "extractSlot", at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;itemDecorations(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;II)V"))
 	private void shulkerInventory$decorateSelectedContent(GuiGraphicsExtractor extractor, Font font, ItemStack stack, int x, int y) {
 		if (PocketBuildMode.isActive()) {
 			Long marker = ShulkerAnimationMarker.get(stack);
 			if (marker != null && marker == PocketBuildMode.animationId()) {
-				shulkerInventory$drawScaledCount(extractor, font, PocketBuildMode.selectedStack(stack), x, y);
+				// Draw only the selected content's count (gated by the "show item count" setting), not the shulker's own
+				// decorations. Disabled -> nothing is drawn here (a shulker is non-stackable, so it has no count anyway).
+				if (ClientConfig.get().showItemCount) {
+					shulkerInventory$drawScaledCount(extractor, font, PocketBuildMode.selectedStack(stack), x, y);
+				}
 				return;
 			}
 		}
@@ -52,12 +54,13 @@ public abstract class GuiSelectedContentDecorationsMixin {
 		int textY = y + 9;
 		// Anchor the scale at the count's RIGHT EDGE (x + 17) and vertical centre, so the right edge stays put and every
 		// count remains right-aligned, just shrunk.
+		float scale = (float) ClientConfig.get().itemCountSize;
 		float anchorX = x + 17f;
 		float anchorY = textY + 4f;
 		Matrix3x2fStack pose = extractor.pose();
 		pose.pushMatrix();
 		pose.translate(anchorX, anchorY);
-		pose.scale(SELECTED_COUNT_SCALE, SELECTED_COUNT_SCALE);
+		pose.scale(scale, scale);
 		pose.translate(-anchorX, -anchorY);
 		extractor.text(font, text, textX, textY, 0xFFFFFFFF, true);
 		pose.popMatrix();
