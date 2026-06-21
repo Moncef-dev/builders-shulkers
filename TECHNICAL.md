@@ -5,8 +5,9 @@ their scope, and known risks. Describes the state as shipped in v1.2.0.
 
 ## Environment
 
-- Loader: Fabric. Minecraft 26.1.2 and 26.2 (one source, both jars; see Multi-version build below). The 26.1.2 jar
-  also runs on 26.1 and 26.1.1 (the whole 26.1.x family, via a widened dependency range). JDK 25.
+- Loader: Fabric. Minecraft 26.1.2 and 26.2 (one source, both jars; see Multi-version build below). The 26.1.2 build,
+  shipped as `...-fabric-26.1.x.jar`, also runs on 26.1 and 26.1.1 (the whole 26.1.x family, via a widened dependency
+  range). JDK 25.
 - Mappings: official Mojang names (MC 26.1+ ships deobfuscated), not Yarn.
 - Split source sets: `client` (rendering, input, screens) and `main` (registration,
   menu, networking). Client code is never called from common code.
@@ -14,7 +15,7 @@ their scope, and known risks. Describes the state as shipped in v1.2.0.
 ### Multi-version build (Stonecutter)
 
 One source tree builds a jar per supported Minecraft version
-(`builders-shulkers-<mod_version>-fabric-26.1.2.jar` and `...-fabric-26.2.jar`), split with Stonecutter:
+(`builders-shulkers-<mod_version>-fabric-26.1.x.jar` and `...-fabric-26.2.jar`), split with Stonecutter:
 `settings.gradle.kts` declares the versions, `build.gradle.kts` is the shared per-version script (the dependency
 pins are keyed on the active version), and `stonecutter.gradle.kts` is the version controller. `./gradlew build`
 builds every version; the mod version stays clean and only the jar classifier carries the Minecraft version.

@@ -42,7 +42,7 @@ Everything is handled by the server, so your items can never be duplicated.
 
 **Server gamerules.** Admins can switch the access from inventory and Pocket-Build features on or off per world.
 
-**Wider version support.** The 26.1.2 build now also runs on Minecraft 26.1 and 26.1.1.
+**Wider version support.** Now also runs on Minecraft 26.1 and 26.1.1 - the 26.1.x jar covers the whole 26.1 line, not just 26.1.2.
 
 Pocket-Build now enters and leaves only on the actual right-click, so pressing the hold key while right click is pressed no longer flips the mode.
 

@@ -4,9 +4,16 @@ plugins {
 
 val minecraftVersion = stonecutter.current.version
 
+// Jar filename label: the 26.1.2 build covers the whole 26.1.x family, so its jar is named fabric-26.1.x to make that
+// clear to users on any 26.1 patch; every other build is named by its exact version. Edit when a build's family changes.
+val jarMcLabel = when (minecraftVersion) {
+    "26.1.2" -> "26.1.x"
+    else -> minecraftVersion
+}
+
 // Per-version pins, keyed on the active Minecraft version (one entry per build target):
 // [Fabric Loader, Fabric API, Litematica (Modrinth version), malilib (Modrinth version), mod dependency range].
-// The range is normally the patch-family of the active version (e.g. ~26.2 = >=26.2.0 <26.3.0). The 26.1.2 jar
+// The range is normally the patch-family of the active version (e.g. ~26.2 = >=26.2.0 <26.3.0). The 26.1.2 build
 // widens to ~26.1 (>=26.1.0 <26.2.0) because it also runs on 26.1 and 26.1.1: those patches change no class the mod
 // touches (verified by bytecode diff - only DetectedVersion/SharedConstants and an unrelated method-body change in
 // ServerGamePacketListenerImpl, whose handleContainerClose signature is unchanged), so one jar covers the whole 26.1.x
@@ -89,10 +96,10 @@ java {
 }
 
 // MC 26.x ships deobfuscated, so the `jar` task IS the final published jar. The mod VERSION stays clean
-// (mod_version); only the classifier carries the loader and MC version, for clear multi-version naming
-// (-> builders-shulkers-<mod_version>-fabric-<mc>.jar).
+// (mod_version); only the classifier carries the loader and the Minecraft family label (jarMcLabel above), for clear
+// multi-version naming (-> builders-shulkers-<mod_version>-fabric-<jarMcLabel>.jar, e.g. ...-fabric-26.1.x.jar).
 tasks.jar {
-    archiveClassifier.set("fabric-$minecraftVersion")
+    archiveClassifier.set("fabric-$jarMcLabel")
     from("LICENSE") {
         rename { "${it}_${rootProject.name}" }
     }

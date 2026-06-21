@@ -64,14 +64,12 @@ jobs:
       - name: compose release notes
         run: |
           version="${GITHUB_REF_NAME#v}"
-          # Supported Minecraft versions for the footer: read from gradle.properties (supported_minecraft), edited per
-          # release alongside mod_version. Kept separate from the jar names because one jar can cover a whole patch
-          # family (the 26.1.2 jar runs on all of 26.1.x), which the jar name does not show.
+          # Supported Minecraft versions for the "Requires" line: read from gradle.properties (supported_minecraft),
+          # edited per release alongside mod_version, so the supported list stays explicit and under control.
           mc_list=$(sed -nE 's/^supported_minecraft=//p' gradle.properties)
           if [ -z "$mc_list" ]; then echo "supported_minecraft missing from gradle.properties" >&2; exit 1; fi
-          # The version TOKENS that appear in the jar filenames (e.g. "26.1.2 or 26.2"), kept distinct from the supported
-          # list above (one jar covers a whole family). Used to disambiguate the attestation command: the reader
-          # substitutes the version from the jar they actually downloaded, not their exact Minecraft version.
+          # The version TOKENS in the jar filenames (e.g. "26.1.x or 26.2"; a jar is named for its family). Used to
+          # disambiguate the attestation command: the reader substitutes the version from the jar they downloaded.
           jar_mc=$(ls versions/*/build/libs/*.jar | grep -vE -- '-(sources|dev)\.jar$' \
                    | sed -E 's#.*-fabric-(.+)\.jar$#\1#' | sort -u | sed ':a;N;$!ba;s/\n/ or /g')
           notes="$RUNNER_TEMP/notes.md"
