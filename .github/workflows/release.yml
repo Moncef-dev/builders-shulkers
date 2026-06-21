@@ -64,10 +64,16 @@ jobs:
       - name: compose release notes
         run: |
           version="${GITHUB_REF_NAME#v}"
-          # Supported Minecraft versions, derived from the runnable jar names
-          # (builders-shulkers-<version>-fabric-<mc>.jar), joined with " or " (e.g. "26.1.2 or 26.2").
-          mc_list=$(ls versions/*/build/libs/*.jar | grep -vE -- '-(sources|dev)\.jar$' \
-                    | sed -E 's#.*-fabric-(.+)\.jar$#\1#' | sort -u | sed ':a;N;$!ba;s/\n/ or /g')
+          # Supported Minecraft versions for the footer: read from gradle.properties (supported_minecraft), edited per
+          # release alongside mod_version. Kept separate from the jar names because one jar can cover a whole patch
+          # family (the 26.1.2 jar runs on all of 26.1.x), which the jar name does not show.
+          mc_list=$(sed -nE 's/^supported_minecraft=//p' gradle.properties)
+          if [ -z "$mc_list" ]; then echo "supported_minecraft missing from gradle.properties" >&2; exit 1; fi
+          # The version TOKENS that appear in the jar filenames (e.g. "26.1.2 or 26.2"), kept distinct from the supported
+          # list above (one jar covers a whole family). Used to disambiguate the attestation command: the reader
+          # substitutes the version from the jar they actually downloaded, not their exact Minecraft version.
+          jar_mc=$(ls versions/*/build/libs/*.jar | grep -vE -- '-(sources|dev)\.jar$' \
+                   | sed -E 's#.*-fabric-(.+)\.jar$#\1#' | sort -u | sed ':a;N;$!ba;s/\n/ or /g')
           notes="$RUNNER_TEMP/notes.md"
           # Changelog body for this version: the lines between "### <version>" and its "** **" separator in README.md.
           # The $(...) capture strips trailing blank lines, so the footer always follows after exactly one blank line.
@@ -75,20 +81,25 @@ jobs:
           # Invariant download/verify footer. <mc_version> is a literal placeholder the reader substitutes.
           {
             printf '%s\n\n' "$body"
-            printf 'Requires Minecraft %s with Fabric Loader, Fabric API, and Java 25. Put the jar for your Minecraft version (`builders-shulkers-%s-fabric-<mc_version>.jar`) and Fabric API in your `mods` folder.\n\n' "$mc_list" "$version"
-            printf 'The jar is built on GitHub Actions from this tag and carries a signed SLSA build-provenance attestation:\n'
+            printf 'Requires Minecraft %s with Fabric Loader, Fabric API, and Java 25. Download the jar for your Minecraft version and put it with Fabric API in your `mods` folder.\n\n' "$mc_list"
+            printf 'Each jar is built on GitHub Actions from this tag and carries a signed SLSA build-provenance attestation. Verify the jar you downloaded with (`<mc_version>` is the version in its filename, %s):\n' "$jar_mc"
             printf '```\n'
             printf 'gh attestation verify builders-shulkers-%s-fabric-<mc_version>.jar --repo Moncef-dev/builders-shulkers\n' "$version"
             printf '```\n'
           } > "$notes"
           echo "----- composed notes -----"; cat "$notes"
           echo "NOTES_PATH=$notes" >> "$GITHUB_ENV"
-          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          # Release title, with an optional subtitle for major versions (release_title in gradle.properties):
+          # "Builder's Shulkers <version>", or "Builder's Shulkers <version>: <release_title>" when set.
+          release_title=$(sed -nE 's/^release_title=//p' gradle.properties)
+          release_name="Builder's Shulkers $version"
+          if [ -n "$release_title" ]; then release_name="$release_name: $release_title"; fi
+          echo "RELEASE_NAME=$release_name" >> "$GITHUB_ENV"
 
       - name: create the release with both jars
         uses: softprops/action-gh-release@v3
         with:
-          name: Builder's Shulkers ${{ env.RELEASE_VERSION }}
+          name: ${{ env.RELEASE_NAME }}
           body_path: ${{ env.NOTES_PATH }}
           files: ${{ steps.jars.outputs.paths }}
           prerelease: ${{ contains(github.ref_name, '-') }}
