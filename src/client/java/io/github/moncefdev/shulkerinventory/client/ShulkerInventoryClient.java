@@ -4,6 +4,7 @@ import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildRemoteContentPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
+import io.github.moncefdev.shulkerinventory.network.GameRuleStatePayload;
 import io.github.moncefdev.shulkerinventory.client.compat.LitematicaPickBlockCompat;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
@@ -67,6 +68,11 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 			});
 		});
 
+		// Cache the server's mod game-rule state (custom rules are not synced automatically), so the client can gate its
+		// own interception in step with the server (see ClientGameRuleState). Sent on join and on every change.
+		ClientPlayNetworking.registerGlobalReceiver(GameRuleStatePayload.TYPE, (payload, context) ->
+				context.client().execute(() -> ClientGameRuleState.set(payload.inventoryAccess(), payload.pocketBuild())));
+
 		// When joining a server that does NOT run this mod, tell the player once why opening shulker boxes from the
 		// inventory will not work here, so a dead right-click does not leave them confused. The check is deferred a
 		// short while after join: Fabric negotiates which custom channels the server can receive slightly AFTER the
@@ -78,6 +84,8 @@ public class ShulkerInventoryClient implements ClientModInitializer {
 			ticksUntilServerModCheck = -1;
 			// Drop all animation state, so orphaned animations and their per-id box models never carry across sessions.
 			ClientShulkerSession.clearAll();
+			// Reset cached game-rule state, so a value from one server never leaks into the next session.
+			ClientGameRuleState.reset();
 		});
 
 		// Advance lid animations once per client tick, but NOT while the game is paused (singleplayer pause menu): the

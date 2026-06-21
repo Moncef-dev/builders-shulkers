@@ -142,7 +142,8 @@ public final class PocketBuildClient {
 		// the mod (so it can validate the placement server-authoritatively). Otherwise leave vanilla alone.
 		ItemStack held = player.getMainHandItem();
 		if (ctrl && ShulkerContents.isShulker(held)
-				&& mc.gui.screen() == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {
+				&& mc.gui.screen() == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)
+				&& ClientGameRuleState.pocketBuild()) {
 			if (rightClickReleased) {
 				enterMode(player, held);
 				rightClickReleased = false;

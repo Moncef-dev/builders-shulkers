@@ -7,11 +7,14 @@ import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayloa
 import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildRemoteContentPayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
+import io.github.moncefdev.shulkerinventory.network.GameRuleStatePayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.NonNullList;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
@@ -32,11 +35,20 @@ public class ShulkerInventory implements ModInitializer {
 		PayloadTypeRegistry.clientboundPlay().register(OpenPlayerInventoryPayload.TYPE, OpenPlayerInventoryPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(RemoteShulkerAnimationPayload.TYPE, RemoteShulkerAnimationPayload.STREAM_CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PocketBuildRemoteContentPayload.TYPE, PocketBuildRemoteContentPayload.STREAM_CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(GameRuleStatePayload.TYPE, GameRuleStatePayload.STREAM_CODEC);
+
+		// Feature toggles exposed as vanilla game rules (default true). Their values are synced to clients (on join and
+		// on change) so the client can gate its own interception, since custom game rules are not synced automatically.
+		ModGameRules.register(ShulkerInventory::broadcastGameRuleState);
 
 		// Open handler: validate the slot, toggle closed if this shulker is already open, otherwise copy the
 		// stack's CONTAINER component into a working container and open a vanilla shulker menu bound to it.
 		ServerPlayNetworking.registerGlobalReceiver(OpenShulkerPayload.TYPE, (payload, context) -> {
 			var player = context.player();
+			// Server-authoritative feature gate: if an admin disabled inventory access, ignore the open request.
+			if (!ModGameRules.inventoryAccess(player.level().getServer())) {
+				return;
+			}
 			int slotIndex = payload.slotIndex();
 			long animationId = payload.animationId();
 			Inventory inventory = player.getInventory();
@@ -98,6 +110,11 @@ public class ShulkerInventory implements ModInitializer {
 			}
 			ItemStack stack = inventory.getItem(hotbarSlot);
 			if (payload.entering()) {
+				// Server-authoritative feature gate: if Pocket-Build is disabled, do not enter the mode. The client is
+				// gated too (it will not even send this), but enforce it regardless. Leaving is never gated.
+				if (!ModGameRules.pocketBuild(player.level().getServer())) {
+					return;
+				}
 				// Entering REQUIRES a shulker in the slot; leaving must NOT. Dropping the held shulker is itself an exit,
 				// so by the time this exit packet is processed the slot is already empty - guarding the exit on isShulker
 				// (a shared check used to) skipped the state clear, leaving the server stuck in Pocket-Build. A recovered
@@ -159,6 +176,8 @@ public class ShulkerInventory implements ModInitializer {
 				LOGGER.info("Removed {} stale animation marker(s) from {}'s inventory on join",
 						cleaned, handler.player.getName().getString());
 			}
+			// Sync the current game-rule state to the joining player (custom rules are not synced automatically).
+			ServerPlayNetworking.send(handler.player, gameRuleState(server));
 		});
 
 		// Drop any Pocket-Build state when a player leaves, so a stale selected slot never lingers server-side.
@@ -176,5 +195,16 @@ public class ShulkerInventory implements ModInitializer {
 			return ItemStack.EMPTY;
 		}
 		return ShulkerContents.read(shulker).get(contentSlot);
+	}
+
+	private static GameRuleStatePayload gameRuleState(MinecraftServer server) {
+		return new GameRuleStatePayload(ModGameRules.inventoryAccess(server), ModGameRules.pocketBuild(server));
+	}
+
+	private static void broadcastGameRuleState(MinecraftServer server) {
+		GameRuleStatePayload payload = gameRuleState(server);
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			ServerPlayNetworking.send(player, payload);
+		}
 	}
 }

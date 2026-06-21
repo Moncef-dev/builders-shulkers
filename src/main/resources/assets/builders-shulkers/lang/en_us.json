@@ -1,0 +1,6 @@
+{
+	"gamerule.builders-shulkers.inventory_access": "Open shulker boxes from the inventory",
+	"gamerule.builders-shulkers.inventory_access.description": "Allow right-clicking a shulker box in the inventory to open and rearrange its contents.",
+	"gamerule.builders-shulkers.pocket_build": "Pocket-Build from a held shulker box",
+	"gamerule.builders-shulkers.pocket_build.description": "Allow Ctrl + right-click on a held shulker box to place or use its contents straight from the hotbar."
+}

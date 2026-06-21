@@ -34,6 +34,8 @@ public final class ShulkerClickHandler {
 		// Only intercept if the server runs the mod and can receive our open request. On a server without the
 		// mod, fall through to vanilla so the shulker keeps its normal right-click behavior (no dead clicks).
 		if (!ClientPlayNetworking.canSend(OpenShulkerPayload.TYPE)) return false;
+		// Respect the server-synced feature gate: if inventory access is disabled, leave the right-click to vanilla.
+		if (!ClientGameRuleState.inventoryAccess()) return false;
 
 		// Begin the lid opening, resuming from the shulker's current openness so a quick reopen continues from where
 		// the closing lid is instead of snapping shut. Shared with Pocket-Build via ClientShulkerSession
