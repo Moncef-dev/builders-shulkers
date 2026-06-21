@@ -36,9 +36,17 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 		this.shulkerInventory$pocketBuildContent = false;
 	}
 
-	@Inject(method = "submit", at = @At("HEAD"))
+	@Inject(method = "submit", at = @At("HEAD"), cancellable = true)
 	private void shulkerInventory$markContent(PoseStack poseStack, SubmitNodeCollector collector, int lightCoords,
 			int overlayCoords, int outlineColor, CallbackInfo ci) {
+		// Skip drawing Pocket-Build content while the lid fully covers it (closed position AND opaque): otherwise the
+		// content keeps rendering through the close drain and pokes out of a visually-closed box. Reset the side-channel
+		// flag first since the RETURN unmark does not fire on a cancelled call.
+		if (this.shulkerInventory$pocketBuildContent && ClientShulkerSession.contentCoveredByClosedLid()) {
+			ClientShulkerSession.setRenderingContentLayer(false);
+			ci.cancel();
+			return;
+		}
 		ClientShulkerSession.setRenderingContentLayer(this.shulkerInventory$pocketBuildContent);
 	}
 

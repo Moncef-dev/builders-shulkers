@@ -13,13 +13,18 @@ import java.nio.file.Path;
 // Server-authoritative behaviour, anti-duplication, and feature availability are NEVER configured here (those are the
 // server game rules); this only controls local visuals and sounds. All fields default to the current rich experience.
 public final class ClientConfig {
+	// How the Pocket-Build lid clears to reveal the contents. NONE keeps it solid (lifts or stays per the animation
+	// setting); DISSOLVE uses the order-independent cutout dissolve; DISAPPEAR draws it only while closed and skips it
+	// entirely once opening starts (instant vanish, no draw call). None of these ever uses a translucent/blended pass.
+	public enum LidEffect { NONE, DISSOLVE, DISAPPEAR }
+
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("builders-shulkers.json");
 	private static ClientConfig instance = new ClientConfig();
 
 	public boolean inventoryAnimation = true;
 	public boolean pocketBuildAnimation = true;
-	public boolean lidDissolve = true;
+	public LidEffect lidEffect = LidEffect.DISSOLVE;
 	public boolean inBoxContent = true;
 	public boolean openCloseSounds = true;
 	public boolean otherPlayerAnimations = true;

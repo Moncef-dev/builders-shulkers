@@ -88,6 +88,59 @@ public final class ClientShulkerSession {
 		return pocketBuildLidRendering;
 	}
 
+	// Render-thread: the live animation's RAW progress (the dissolve fade amount), set by the openness override just
+	// before the shulker submit and read by the lid-fade mixin. Kept separate from the openness ARG passed to the
+	// renderer (which carries the lid POSITION, frozen at the resting lid state when that animation type's animation is
+	// off), so the lid can keep dissolving while it no longer lifts ("dissolve, no animation").
+	private static float currentDissolveProgress = 0.0f;
+
+	public static void setCurrentDissolveProgress(float progress) {
+		currentDissolveProgress = progress;
+	}
+
+	public static float currentDissolveProgress() {
+		return currentDissolveProgress;
+	}
+
+	// Render-thread: the live animation's lifecycle status, published by the openness override alongside the raw progress
+	// and read by the lid-fade mixin. The DISAPPEAR effect keys on THIS (binary: gone while opening/open, present while
+	// closing), not on the progress, so it stays instant in both directions and decoupled from the lift animation.
+	private static AnimationStatus currentRenderStatus = null;
+
+	public static void setCurrentRenderStatus(AnimationStatus status) {
+		currentRenderStatus = status;
+	}
+
+	public static AnimationStatus currentRenderStatus() {
+		return currentRenderStatus;
+	}
+
+	// Render-thread: the lid POSITION the openness override last returned for the live box (0 = closed, 1 = open). Read at
+	// the content layer's submit to decide whether the in-box content is covered. Below this the lid counts as closed.
+	private static final float LID_CLOSED_OPENNESS = 1.0e-3f;
+	// Render-thread: at/below this dissolve progress the DISSOLVE lid is treated as fully re-materialised (opaque).
+	private static final float LID_OPAQUE_DISSOLVE = 1.0e-3f;
+	private static float currentLidOpenness = 0.0f;
+
+	public static void setCurrentLidOpenness(float openness) {
+		currentLidOpenness = openness;
+	}
+
+	// Whether the Pocket-Build content should be skipped this frame because the lid fully covers it: the lid is at the
+	// closed POSITION (openness 0) AND completely OPAQUE (no dissolve/disappear revealing the interior). Without this the
+	// content keeps rendering through the whole close drain and pokes out of a visually-closed box. The box layer's
+	// openness override runs before the content layers (appended after the box), so the fields read here are fresh.
+	public static boolean contentCoveredByClosedLid() {
+		if (currentLidOpenness > LID_CLOSED_OPENNESS) {
+			return false;
+		}
+		return switch (ClientConfig.get().lidEffect) {
+			case NONE -> true;
+			case DISSOLVE -> currentDissolveProgress <= LID_OPAQUE_DISSOLVE;
+			case DISAPPEAR -> currentRenderStatus == AnimationStatus.CLOSING;
+		};
+	}
+
 	// A random non-zero long, so ids are globally unique across clients. A per-client sequential counter would
 	// restart at the same values on every client, so in multiplayer a shulker carrying client A's id could collide
 	// with an unrelated animation client B is tracking under the same id, making B render A's shulker as open. Zero
@@ -207,6 +260,14 @@ public final class ClientShulkerSession {
 
 	public static boolean isAnimating(long animationId) {
 		return animations.containsKey(animationId);
+	}
+
+	// The animation's current lifecycle status (OPENING / OPENED / CLOSING), or null if there is no live animation for
+	// this id. Lets the openness override snap the lid shut at the START of a close when the lift animation is off,
+	// instead of lingering at the resting state while the close drains.
+	public static AnimationStatus getStatus(long animationId) {
+		AnimationState anim = animations.get(animationId);
+		return anim == null ? null : anim.status;
 	}
 
 	// The animation's current logical openness (0..1), or 0 if there is no live animation for this id. Used to

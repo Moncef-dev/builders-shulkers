@@ -1,5 +1,6 @@
 package io.github.moncefdev.shulkerinventory.client.gui;
 
+import com.mojang.serialization.Codec;
 import io.github.moncefdev.shulkerinventory.client.ClientConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.OptionInstance;
@@ -9,18 +10,20 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
+import java.util.Locale;
+
 // The mod's client settings screen, built on the vanilla OptionsSubScreen so it looks and behaves exactly like the
 // vanilla Video/Accessibility screens (scrollable OptionsList + a Done button). Opened by the settings keybind. Each
-// option carries a descriptive tooltip. Cross-version notes: the toggles use createBoolean's 2-/3-arg overloads and the
-// Open/Closed options use the 5-arg with a no-op listener that target-types to either 26.1.2's Consumer or 26.2's
-// ValueUpdateListener; the count-size control is a plain AbstractSliderButton (its OptionInstance equivalent's callback
-// differs between versions). Values are harvested into ClientConfig on close.
-//
-// NOTE: these settings are stored and persisted, but their visual EFFECTS are not wired in yet (follow-up).
+// option carries a descriptive tooltip, and the values drive the matching ClientConfig fields (harvested on close).
+// Cross-version notes: the toggles use createBoolean's 2-/3-arg overloads; the Open/Closed and the lid-effect (enum
+// cycle) options use the multi-arg constructor with a no-op listener that target-types to either 26.1.2's Consumer or
+// 26.2's ValueUpdateListener; the count-size control is a plain AbstractSliderButton (its OptionInstance equivalent's
+// callback differs between versions).
 public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 	private final OptionInstance<Boolean> inventoryAnimation;
 	private final OptionInstance<Boolean> pocketBuildAnimation;
-	private final OptionInstance<Boolean> lidDissolve;
+	private final OptionInstance<ClientConfig.LidEffect> lidEffect;
 	private final OptionInstance<Boolean> inBoxContent;
 	private final OptionInstance<Boolean> openCloseSounds;
 	private final OptionInstance<Boolean> otherPlayerAnimations;
@@ -34,7 +37,7 @@ public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 		ClientConfig c = ClientConfig.get();
 		this.inventoryAnimation = toggle("screen.builders-shulkers.settings.inventory_animation", c.inventoryAnimation);
 		this.pocketBuildAnimation = toggle("screen.builders-shulkers.settings.pocket_build_animation", c.pocketBuildAnimation);
-		this.lidDissolve = toggle("screen.builders-shulkers.settings.lid_dissolve", c.lidDissolve);
+		this.lidEffect = lidEffectOption("screen.builders-shulkers.settings.lid_effect", c.lidEffect);
 		this.inBoxContent = toggle("screen.builders-shulkers.settings.in_box_content", c.inBoxContent);
 		this.openCloseSounds = toggle("screen.builders-shulkers.settings.open_close_sounds", c.openCloseSounds);
 		this.otherPlayerAnimations = toggle("screen.builders-shulkers.settings.other_player_animations", c.otherPlayerAnimations);
@@ -49,7 +52,7 @@ public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 		this.list.addSmall(
 				inventoryAnimation, pocketBuildAnimation,
 				inventoryLidOpen, pocketBuildLidOpen,
-				lidDissolve, inBoxContent,
+				lidEffect, inBoxContent,
 				openCloseSounds, otherPlayerAnimations);
 		// "Show item count" and its size slider share the last row (5 rows of 2).
 		this.list.addSmall(showItemCount.createButton(this.minecraft.options), itemCountSize);
@@ -61,7 +64,7 @@ public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 		ClientConfig c = ClientConfig.get();
 		c.inventoryAnimation = inventoryAnimation.get();
 		c.pocketBuildAnimation = pocketBuildAnimation.get();
-		c.lidDissolve = lidDissolve.get();
+		c.lidEffect = lidEffect.get();
 		c.inBoxContent = inBoxContent.get();
 		c.openCloseSounds = openCloseSounds.get();
 		c.otherPlayerAnimations = otherPlayerAnimations.get();
@@ -78,6 +81,25 @@ public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 		return OptionInstance.createBoolean(key,
 				OptionInstance.cachedConstantTooltip(Component.translatable(key + ".tooltip")),
 				initial);
+	}
+
+	// The Pocket-Build lid effect, a 3-value cycle (None / Dissolve / Disappear). The Enum ValueSet needs a Codec, built
+	// trivially from the enum name. The constructor's last parameter (the change callback) differs between 26.1.2
+	// (Consumer) and 26.2 (ValueUpdateListener), but the no-op lambda target-types to either, like the boolean options;
+	// the value is harvested on close. The CaptionBasedToString returns only the value label (the framework prepends the
+	// caption), keyed as "<key>.none" / ".dissolve" / ".disappear".
+	private static final Codec<ClientConfig.LidEffect> LID_EFFECT_CODEC =
+			Codec.STRING.xmap(ClientConfig.LidEffect::valueOf, ClientConfig.LidEffect::name);
+	private static final OptionInstance.Enum<ClientConfig.LidEffect> LID_EFFECT_VALUES =
+			new OptionInstance.Enum<>(List.of(ClientConfig.LidEffect.values()), LID_EFFECT_CODEC);
+
+	private static OptionInstance<ClientConfig.LidEffect> lidEffectOption(String key, ClientConfig.LidEffect initial) {
+		return new OptionInstance<>(key,
+				OptionInstance.cachedConstantTooltip(Component.translatable(key + ".tooltip")),
+				(caption, value) -> Component.translatable(key + "." + value.name().toLowerCase(Locale.ROOT)),
+				LID_EFFECT_VALUES,
+				initial,
+				newValue -> {});
 	}
 
 	// A boolean option whose value reads "Open"/"Closed" instead of "ON"/"OFF", with a tooltip. The CaptionBasedToString
