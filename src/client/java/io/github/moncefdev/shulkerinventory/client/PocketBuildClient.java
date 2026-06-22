@@ -1,5 +1,6 @@
 package io.github.moncefdev.shulkerinventory.client;
 
+import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
@@ -41,6 +42,15 @@ public final class PocketBuildClient {
 	// modifier + right-click toggle (which holds the key briefly) never flashes the overlay before the mode opens/closes.
 	private static final int PEEK_DELAY_TICKS = 5;
 	private static int peekHeldTicks = 0;
+
+	// Held-box identity tracking. The mode box carries the server-set animation marker; an in-place item swap (Item
+	// Swapper's R menu, a creative set-slot, any mod that replaces the held stack without moving the selected slot)
+	// puts a different shulker in the same slot, so its marker no longer matches and we exit. The marker syncs back a
+	// tick or two after entry, so a mismatch is enforced only once it has matched at least once (heldMarkerConfirmed);
+	// a bounded grace exits anyway if it never confirms, so the mode can never linger on a box that is not ours.
+	private static boolean heldMarkerConfirmed = false;
+	private static int ticksInMode = 0;
+	private static final int MARKER_SYNC_GRACE_TICKS = 40;
 
 	// Whether the peek contents overlay should be shown right now: in Pocket-Build mode with the Peek key held past the
 	// debounce window. Read by PocketBuildOverlay.
@@ -97,6 +107,20 @@ public final class PocketBuildClient {
 			// the chest GUI flow. The pause menu, options, chat, etc. leave the mode running.
 			if (mc.gui.screen() instanceof AbstractContainerScreen || !stillShulker
 					|| mc.player.getInventory().getSelectedSlot() != PocketBuildMode.sourceHotbarSlot()) {
+				exitMode();
+				return;
+			}
+			// Held-box identity: an in-place item swap (Item Swapper's R menu, a creative set-slot, any mod that
+			// replaces the held stack WITHOUT moving the selected slot) puts a different shulker in the same slot, which
+			// the checks above miss. The mode box carries the server-set marker; a swapped-in box does not match, so we
+			// exit - the swap then cleanly closes box 1 and leaves box 2 a normal held shulker. Enforce a mismatch only
+			// once the marker has matched at least once (it syncs back a tick or two after entry); a bounded grace exits
+			// anyway if it never confirms (e.g. a swap during that initial window), so the mode can never linger.
+			ticksInMode++;
+			Long heldMarker = ShulkerAnimationMarker.get(held);
+			if (heldMarker != null && heldMarker == PocketBuildMode.animationId()) {
+				heldMarkerConfirmed = true;
+			} else if (heldMarkerConfirmed || ticksInMode > MARKER_SYNC_GRACE_TICKS) {
 				exitMode();
 				return;
 			}
@@ -160,6 +184,9 @@ public final class PocketBuildClient {
 		// Restart the peek debounce from zero, so opening the mode (a modifier + right-click that holds the key briefly)
 		// does not immediately flash the contents overlay, just like the exit case.
 		peekHeldTicks = 0;
+		// Fresh session: re-arm the held-box identity tracking (see the tick handler).
+		heldMarkerConfirmed = false;
+		ticksInMode = 0;
 		int slot = player.getInventory().getSelectedSlot();
 		// Begin the lid opening, resuming from the shulker's current openness (shared with the inventory open mode via
 		// ClientShulkerSession.beginHeldOpening), so a quick re-enter continues from where the closing lid is instead
@@ -179,6 +206,8 @@ public final class PocketBuildClient {
 		long id = PocketBuildMode.animationId();
 		int slot = PocketBuildMode.sourceHotbarSlot();
 		PocketBuildMode.exit();
+		heldMarkerConfirmed = false;
+		ticksInMode = 0;
 		if (ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {
 			ClientPlayNetworking.send(new PocketBuildModePayload(false, slot, id, -1));
 		}

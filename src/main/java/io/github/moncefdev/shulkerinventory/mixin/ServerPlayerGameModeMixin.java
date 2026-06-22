@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import io.github.moncefdev.shulkerinventory.PocketBuildContentSwap;
 import io.github.moncefdev.shulkerinventory.PocketBuildServerState;
+import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
@@ -31,6 +32,14 @@ public abstract class ServerPlayerGameModeMixin {
 		}
 		ItemStack shulker = player.getMainHandItem();
 		if (!ShulkerContents.isShulker(shulker)) {
+			return original.call(player, level, stack, hand, hit);
+		}
+		// Fail-closed on held-box identity: only swap content if the held shulker is STILL the box the mode entered
+		// with (its marker matches the stored id). An in-place item swap (Item Swapper's R menu, a creative set-slot)
+		// leaves the selected slot unchanged but puts a DIFFERENT shulker in hand, so its marker will not match - never
+		// place from the wrong box. Clear the now-stale state so the next use is plain vanilla (the client exits too).
+		if (!PocketBuildServerState.matchesModeBox(player.getUUID(), ShulkerAnimationMarker.get(shulker))) {
+			PocketBuildServerState.exit(player.getUUID());
 			return original.call(player, level, stack, hand, hit);
 		}
 		// Pass the swapped-in content as BOTH the stack argument and the held item, so the whole vanilla flow uses it.

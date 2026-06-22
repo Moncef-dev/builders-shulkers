@@ -146,7 +146,7 @@ public class ShulkerInventory implements ModInitializer {
 				if (!ShulkerContents.isShulker(stack)) {
 					return;
 				}
-				PocketBuildServerState.enter(player.getUUID(), payload.contentSlot());
+				PocketBuildServerState.enter(player.getUUID(), payload.contentSlot(), payload.animationId());
 				ShulkerAnimationMarker.set(stack, payload.animationId());
 				// Open broadcast FIRST (it creates the mirror animation on viewers), then the content broadcast, so
 				// markPocketBuild / setPocketBuildContent land on an animation that already exists for them.

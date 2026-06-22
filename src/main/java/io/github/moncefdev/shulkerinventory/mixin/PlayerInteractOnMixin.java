@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import io.github.moncefdev.shulkerinventory.PocketBuildContentSwap;
 import io.github.moncefdev.shulkerinventory.PocketBuildServerState;
+import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -33,6 +34,13 @@ public abstract class PlayerInteractOnMixin {
 		}
 		ItemStack shulker = self.getMainHandItem();
 		if (!ShulkerContents.isShulker(shulker)) {
+			return original.call(entity, hand, vec);
+		}
+		// Fail-closed on held-box identity (see ServerPlayerGameModeMixin): an in-place item swap replaces the held
+		// shulker without moving the selected slot, so only interact with the content if the held box's marker still
+		// matches the one the mode entered with; otherwise run plain vanilla and clear the now-stale state.
+		if (!PocketBuildServerState.matchesModeBox(self.getUUID(), ShulkerAnimationMarker.get(shulker))) {
+			PocketBuildServerState.exit(self.getUUID());
 			return original.call(entity, hand, vec);
 		}
 		// interactOn reads the hand item itself, so the swapped-in content drives the interaction; held is unused here.
