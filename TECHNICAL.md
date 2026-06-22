@@ -1,7 +1,7 @@
-# Builder's Shulkers - Technical Documentation (v1.2.0)
+# Builder's Shulkers - Technical Documentation (v1.2.1)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.2.0.
+their scope, and known risks. Describes the state as shipped in v1.2.1.
 
 ## Environment
 
@@ -227,7 +227,7 @@ Client (`builders-shulkers.client.mixins.json`):
   `pocket_build`), sent on join and on every change. Custom gamerules are NOT synced to the client automatically, so
   the client caches them (`ClientGameRuleState`) to gate its own interception in step with the server (section 9).
 
-## 7. Known limitations and risks (v1.2.0)
+## 7. Known limitations and risks (v1.2.1)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -315,6 +315,15 @@ duplicated.
   through the shared `PocketBuildClient.handlePocketBuildPick` at the head of `handlePickItemFromBlock` /
   `handlePickItemFromEntity`: it either selects the matching content from the box (staying in the mode) or exits the mode
   before the pick runs so it proceeds vanilla and unlocked (see the pick-block subsections).
+- Held-box identity (1.2.1). An in-place item swap (Item Swapper's `R` quick-swap to another shulker, a creative
+  set-slot, any mod that replaces the held stack WITHOUT moving the selected slot) is missed by the conditions above
+  (still a shulker, same slot), and used to carry the mode over to the new box (which never played its open animation)
+  instead of closing on the old one. The mode box carries the `animation_id` marker (sections 3-4), so each client tick
+  `PocketBuildClient` exits when the held shulker's marker no longer matches the mode's id, enforced only once it has
+  matched at least once (the server-set marker syncs back a tick or two after entry) with a bounded grace so the mode
+  can never linger. Server fail-closed: `PocketBuildServerState` stores the entered box's animation id, and the
+  content-swap mixins (`ServerPlayerGameModeMixin`, `PlayerInteractOnMixin`) refuse to swap or place unless the held
+  box's marker matches, so nothing can be placed from the wrong box even within the one-tick window (anti-duplication).
 - Animation. Entering and leaving the mode reuse the inventory-open machinery (sections 3-4): the client begins the
   lid animation via the shared `ClientShulkerSession.beginHeldOpening`, which resumes from the shulker's current
   openness on a quick re-enter; the server stamps the `animation_id` marker and broadcasts open/close, so the held

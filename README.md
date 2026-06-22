@@ -20,20 +20,25 @@ items from your hotbar while you build.
 
 ### Build from a shulker in your hotbar (Pocket-Build)
 - Hold a shulker box in your hotbar and Ctrl + right-click to enter Pocket-Build mode, instead of placing the box.
-- Scroll the mouse wheel to select the previous/next different block inside the box; its name shows above your hotbar, its count shows on the slot, and the box opens with a dissolving lid that reveals the selected block drawn inside it.
+- Scroll the mouse wheel to select the previous/next different block inside the box; its name shows above your hotbar, its count shows on the slot, and the box opens with a dissolving lid that reveals the selected block rendered inside it.
 - Middle-click a block you already have in the box to select it straight away; if it is not in the box, middle-click takes it from your inventory as usual.
-- Right-click to place that block straight from the box - on the ground, into an item frame, and so on - while the box stays in your hand. The block drawn inside the box follows it in your hand and on the ground.
+- Right-click to place that block straight from the box - on the ground, into an item frame, and so on - while the box stays in your hand. The block rendered inside the box follows it in your hand and on the ground.
 - Pocket-Build places blocks; a non-block selection does nothing, so the box stays a pocket of building blocks.
 - Hold Ctrl to peek at the box's full contents in an overlay above your hotbar.
 
 Everything is handled by the server, so your items can never be duplicated.
 
 ### Customization
-- Press B (rebindable) to open the settings screen and tune the cosmetics: lid animations, the lid effect (dissolve, disappear, or stay solid), the block drawn inside the box and its count, the open/close sounds, and more.
+- Press B (rebindable) to open the settings screen and tune the cosmetics: lid animations, the lid effect (dissolve, disappear, or stay solid), the block rendered inside the box and its count, the open/close sounds, and more.
 - Every control lives in Options -> Controls under "Builder's Shulkers" and can be rebound or unbound: the Pocket-Build hold key (default Left Control), a peek key (default Left Control), and a single-press "Toggle Pocket-Build" (unbound by default) to enter and leave the mode with one button (handy on a controller or on touch).
 - Server admins can turn the access from inventory and Pocket-Build features on or off with gamerules.
 
 ## Versions
+
+### 1.2.1
+Swapping the shulker you are holding while in Pocket-Build now leaves the mode cleanly, instead of carrying Pocket-Build over to the new shulker.
+
+** **
 
 ### 1.2.0
 **A settings screen.** Press B (rebindable) to open Builder's Shulkers settings and tune the look and feel: turn the inventory and Pocket-Build lid animations on or off, choose how the Pocket-Build lid clears (dissolve, vanish, or a plain solid lid), show or hide the block rendered inside the box and its count, resize the item count, toggle the open/close sounds, and enable/disable other player's shulker animations in multiplayer.
@@ -73,7 +78,7 @@ In Pocket-Build, scrolling now jumps to the next or previous DIFFERENT block ins
 ** **
 
 ### 1.1.1
-**Content inside the box.** The shulker now shows the block you have selected drawn inside it while you build (in your hand and dropped on the ground), and its lid dissolves open to reveal it. Other players also see that full animation on a shulker you hold: the dissolving lid and the block inside, updating as you build, not just a basic opening lid.
+**Content inside the box.** The shulker now shows the block you have selected rendered inside it while you build (in your hand and dropped on the ground), and its lid dissolves open to reveal it. Other players also see that full animation on a shulker you hold: the dissolving lid and the block inside, updating as you build, not just a basic opening lid.
 
 **Pocket-Build.** It now places blocks specifically (a non-block selection does nothing), and the Ctrl peek shows each item's full details (count, durability bar, cooldown). Leaving the mode (Ctrl + right-click, or opening a chest) now works whatever you have selected; picking a block (middle-click), dying, and dropping the box now exit the mode cleanly; and scrolling after emptying a slot continues to the next item.
 
