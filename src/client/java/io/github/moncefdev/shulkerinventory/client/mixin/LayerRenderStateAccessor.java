@@ -3,7 +3,7 @@ package io.github.moncefdev.shulkerinventory.client.mixin;
 import java.util.function.Supplier;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.special.SpecialModelRenderer;
-import net.minecraft.client.resources.model.cuboid.ItemTransform;
+import net.minecraft.client.renderer.block.model.ItemTransform;
 import org.joml.Vector3fc;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
@@ -16,12 +16,11 @@ public interface LayerRenderStateAccessor {
 	Supplier<Vector3fc[]> shulkerInventory$getExtents();
 
 	// The layer's baked display transform. Needed to express the box's geometry in the same (post-transform) space as
-	// the content, so the content can be centred on the box's real visual centre.
-	@Accessor("itemTransform")
+	// the content, so the content can be centred on the box's real visual centre. 1.21.11 names this field "transform"
+	// (26.x renamed it itemTransform when it added a separate localTransform; here localTransform is recreated as a
+	// mixin-held field, read via the PocketBuildContentLayer interface, not as a vanilla accessor).
+	@Accessor("transform")
 	ItemTransform shulkerInventory$getItemTransform();
-
-	@Accessor("localTransform")
-	org.joml.Matrix4f shulkerInventory$getLocalTransform();
 
 	// Whether this layer draws through a special block-entity renderer (skull, conduit, copper golem statue, shulker,
 	// bed...). Such content is rendered in entity-model native space and lands off the box centre in the GUI slot too,

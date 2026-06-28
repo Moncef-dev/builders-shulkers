@@ -13,10 +13,13 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 // blocks, or a shulker drawn INSIDE the box as content) render unchanged.
 @Mixin(ShulkerBoxSpecialRenderer.class)
 public abstract class ShulkerBoxOpennessMixin {
+	// 1.21.11 ShulkerBoxRenderer.submit is the 9-arg form (carries the box orientation Direction and a Material); the
+	// openness float sits at index 5 (after the Direction). 26.x dropped the Direction and used a SpriteId, with the
+	// openness at index 4.
 	@ModifyArg(method = "submit",
 			at = @At(value = "INVOKE",
-					target = "Lnet/minecraft/client/renderer/blockentity/ShulkerBoxRenderer;submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;IIFLnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;Lnet/minecraft/client/resources/model/sprite/SpriteId;I)V"),
-			index = 4)
+					target = "Lnet/minecraft/client/renderer/blockentity/ShulkerBoxRenderer;submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;IILnet/minecraft/core/Direction;FLnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;Lnet/minecraft/client/resources/model/Material;I)V"),
+			index = 5)
 	private float shulkerInventory$overrideOpenness(float original) {
 		long id = ClientShulkerSession.getCurrentAtlasRenderingId();
 		if (id == 0L) {

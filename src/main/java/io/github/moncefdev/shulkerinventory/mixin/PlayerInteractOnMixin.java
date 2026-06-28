@@ -11,7 +11,6 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 
 // Content-swap on the ENTITY path, the counterpart of ServerPlayerGameModeMixin for blocks. Player.interactOn is
@@ -25,25 +24,26 @@ import org.spongepowered.asm.mixin.Mixin;
 // swaps first, then this runs on the content and no-ops), so the two never double-swap.
 @Mixin(Player.class)
 public abstract class PlayerInteractOnMixin {
+	// 1.21.11 interactOn is (Entity, InteractionHand); 26.x added a Vec3 hit-location parameter.
 	@WrapMethod(method = "interactOn")
-	private InteractionResult shulkerInventory$useContentOnEntity(Entity entity, InteractionHand hand, Vec3 vec,
+	private InteractionResult shulkerInventory$useContentOnEntity(Entity entity, InteractionHand hand,
 			Operation<InteractionResult> original) {
 		Player self = (Player) (Object) this;
 		if (hand != InteractionHand.MAIN_HAND || !PocketBuildServerState.isActive(self.getUUID())) {
-			return original.call(entity, hand, vec);
+			return original.call(entity, hand);
 		}
 		ItemStack shulker = self.getMainHandItem();
 		if (!ShulkerContents.isShulker(shulker)) {
-			return original.call(entity, hand, vec);
+			return original.call(entity, hand);
 		}
 		// Fail-closed on held-box identity (see ServerPlayerGameModeMixin): an in-place item swap replaces the held
 		// shulker without moving the selected slot, so only interact with the content if the held box's marker still
 		// matches the one the mode entered with; otherwise run plain vanilla and clear the now-stale state.
 		if (!PocketBuildServerState.matchesModeBox(self.getUUID(), ShulkerAnimationMarker.get(shulker))) {
 			PocketBuildServerState.exit(self.getUUID());
-			return original.call(entity, hand, vec);
+			return original.call(entity, hand);
 		}
 		// interactOn reads the hand item itself, so the swapped-in content drives the interaction; held is unused here.
-		return PocketBuildContentSwap.runOnServer(self, shulker, held -> original.call(entity, hand, vec));
+		return PocketBuildContentSwap.runOnServer(self, shulker, held -> original.call(entity, hand));
 	}
 }

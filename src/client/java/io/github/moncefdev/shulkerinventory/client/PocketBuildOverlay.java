@@ -2,7 +2,7 @@ package io.github.moncefdev.shulkerinventory.client;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.core.NonNullList;
@@ -40,13 +40,13 @@ public final class PocketBuildOverlay {
 	private static final int TITLE_COLOR = 0xFF404040;
 	private static final int HOVER_COLOR = 0x80FFFFFF;
 
-	public static void render(GuiGraphicsExtractor g, DeltaTracker delta) {
+	public static void render(GuiGraphics g, DeltaTracker delta) {
 		// Ctrl-peek with debounce (so a quick Ctrl + right-click toggle does not flash the overlay).
 		if (!PocketBuildClient.peekVisible()) {
 			return;
 		}
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.player == null || mc.gui.screen() != null) {
+		if (mc.player == null || mc.screen != null) {
 			return;
 		}
 		ItemStack shulker = mc.player.getMainHandItem();
@@ -66,7 +66,7 @@ public final class PocketBuildOverlay {
 				PANEL_W, BORDER_H, TEX, TEX);
 
 		// Title (the held shulker's name), like the real container header.
-		g.text(mc.font, shulker.getHoverName(), x0 + FIRST_SLOT_X, y0 + 6, TITLE_COLOR, false);
+		g.drawString(mc.font, shulker.getHoverName(), x0 + FIRST_SLOT_X, y0 + 6, TITLE_COLOR, false);
 
 		// Items, rendered exactly like a vanilla container slot: the icon plus the full vanilla decorations (count,
 		// durability bar, cooldown overlay). Using vanilla's own itemDecorations means every subtlety emerges - and
@@ -78,8 +78,8 @@ public final class PocketBuildOverlay {
 			}
 			int ix = itemX(x0, i);
 			int iy = itemY(y0, i);
-			g.item(stack, ix, iy);
-			g.itemDecorations(mc.font, stack, ix, iy);
+			g.renderItem(stack, ix, iy);
+			g.renderItemDecorations(mc.font, stack, ix, iy);
 		}
 
 		// Selected slot: vanilla container hover wash.

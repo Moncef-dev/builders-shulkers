@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.special.ShulkerBoxSpecialRenderer;
+import net.minecraft.world.item.ItemDisplayContext;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -16,9 +17,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // when the mode opens it, so the lid dissolves for the whole open even on an empty selection (no content to draw).
 @Mixin(ShulkerBoxSpecialRenderer.class)
 public abstract class ShulkerBoxLidFadeGateMixin {
+	// 1.21.11 ShulkerBoxSpecialRenderer.submit takes a leading ItemDisplayContext (26.x dropped it).
 	@Inject(method = "submit", at = @At("HEAD"))
-	private void shulkerInventory$markPocketBuild(PoseStack poseStack, SubmitNodeCollector collector, int lightCoords,
-			int overlayCoords, boolean hasFoil, int outlineColor, CallbackInfo ci) {
+	private void shulkerInventory$markPocketBuild(ItemDisplayContext displayContext, PoseStack poseStack,
+			SubmitNodeCollector collector, int lightCoords, int overlayCoords, boolean hasFoil, int outlineColor,
+			CallbackInfo ci) {
 		long id = ClientShulkerSession.currentRenderingId();
 		boolean content = ClientShulkerSession.isRenderingContentLayer();
 		// Suppress only the DISSOLVE for a content shulker (keep its lid opaque, so it never collapses to base-only). Its
@@ -29,8 +32,9 @@ public abstract class ShulkerBoxLidFadeGateMixin {
 	}
 
 	@Inject(method = "submit", at = @At("RETURN"))
-	private void shulkerInventory$clearPocketBuild(PoseStack poseStack, SubmitNodeCollector collector, int lightCoords,
-			int overlayCoords, boolean hasFoil, int outlineColor, CallbackInfo ci) {
+	private void shulkerInventory$clearPocketBuild(ItemDisplayContext displayContext, PoseStack poseStack,
+			SubmitNodeCollector collector, int lightCoords, int overlayCoords, boolean hasFoil, int outlineColor,
+			CallbackInfo ci) {
 		ClientShulkerSession.setPocketBuildLidRendering(false);
 	}
 }

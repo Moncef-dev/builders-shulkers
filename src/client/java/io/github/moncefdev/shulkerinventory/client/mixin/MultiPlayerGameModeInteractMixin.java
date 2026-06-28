@@ -11,7 +11,6 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.EntityHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 
 // Client-side counterpart of MultiPlayerGameModeMixin (blocks) for the ENTITY path: while in Pocket-Build mode, a
@@ -25,16 +24,17 @@ import org.spongepowered.asm.mixin.Mixin;
 // the shulker.
 @Mixin(MultiPlayerGameMode.class)
 public abstract class MultiPlayerGameModeInteractMixin {
+	// 1.21.11 interact is (Player, Entity, InteractionHand); 26.x added an EntityHitResult parameter.
 	@WrapMethod(method = "interact")
-	private InteractionResult shulkerInventory$useContentOnEntity(Player player, Entity entity, EntityHitResult hit,
+	private InteractionResult shulkerInventory$useContentOnEntity(Player player, Entity entity,
 			InteractionHand hand, Operation<InteractionResult> original) {
 		if (hand != InteractionHand.MAIN_HAND || !PocketBuildMode.isActive()) {
-			return original.call(player, entity, hit, hand);
+			return original.call(player, entity, hand);
 		}
 		ItemStack shulker = player.getMainHandItem();
 		if (!ShulkerContents.isShulker(shulker)) {
-			return original.call(player, entity, hit, hand);
+			return original.call(player, entity, hand);
 		}
-		return PocketBuildClientSwap.runPredicted(player, shulker, () -> original.call(player, entity, hit, hand));
+		return PocketBuildClientSwap.runPredicted(player, shulker, () -> original.call(player, entity, hand));
 	}
 }

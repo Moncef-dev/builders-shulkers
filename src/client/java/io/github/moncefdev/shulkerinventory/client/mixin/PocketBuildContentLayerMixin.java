@@ -12,11 +12,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.blockentity.ShulkerBoxRenderer;
 import net.minecraft.client.renderer.special.ShulkerBoxSpecialRenderer;
 import net.minecraft.client.renderer.special.SpecialModelRenderer;
-import net.minecraft.client.resources.model.sprite.SpriteGetter;
-import net.minecraft.client.resources.model.sprite.SpriteId;
+import net.minecraft.client.resources.model.MaterialSet;
+import net.minecraft.client.resources.model.Material;
 import net.minecraft.client.renderer.item.ItemModelResolver;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
-import net.minecraft.client.resources.model.cuboid.ItemTransform;
+import net.minecraft.client.renderer.block.model.ItemTransform;
+import net.minecraft.core.Direction;
 import net.minecraft.world.entity.ItemOwner;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
@@ -49,7 +50,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class PocketBuildContentLayerMixin {
 	// Separate-model shulker renderers for NESTED content shulkers, cached per colour sprite, so a content
 	// shulker's lid pose is not coalesced with the box's shared model (see separateNestedShulkerModel).
-	private static final Map<SpriteId, ShulkerBoxSpecialRenderer> CONTENT_SHULKER_RENDERERS = new ConcurrentHashMap<>();
+	private static final Map<Material, ShulkerBoxSpecialRenderer> CONTENT_SHULKER_RENDERERS = new ConcurrentHashMap<>();
 	// Flat sprites (tools, the shield...) read wider than a block at the same scale, so they are shrunk a bit more to
 	// stay inside the box (e.g. the sword and trident otherwise just clip the edges). A 3D block keeps the larger 0.6.
 	private static final float FLAT_CONTENT_SCALE = 0.5f;
@@ -212,8 +213,8 @@ public abstract class PocketBuildContentLayerMixin {
 					.translate(-BOX_CENTER, -BOX_CENTER, -BOX_CENTER);
 		}
 		for (int i = before; i < after; i++) {
-			layers[i].setItemTransform(ItemTransform.NO_TRANSFORM);
-			layers[i].setLocalTransform(localTransform);
+			layers[i].setTransform(ItemTransform.NO_TRANSFORM);
+			((PocketBuildContentLayer) (Object) layers[i]).shulkerInventory$setLocalTransform(localTransform);
 		}
 	}
 
@@ -250,7 +251,7 @@ public abstract class PocketBuildContentLayerMixin {
 			int after, float[] boxRef) {
 		for (int i = before; i < after; i++) {
 			ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
-			layers[i].setItemTransform(new ItemTransform(new Vector3f(boxRef[0], boxRef[1], boxRef[2]), it.translation(), it.scale()));
+			layers[i].setTransform(new ItemTransform(new Vector3f(boxRef[0], boxRef[1], boxRef[2]), it.translation(), it.scale()));
 		}
 	}
 
@@ -285,7 +286,7 @@ public abstract class PocketBuildContentLayerMixin {
 					(float) Math.toRadians(r.y()),
 					(float) Math.toRadians(r.z())));
 			Vector3f euler = qNew.getEulerAnglesXYZ(new Vector3f());
-			layers[i].setItemTransform(new ItemTransform(
+			layers[i].setTransform(new ItemTransform(
 					new Vector3f((float) Math.toDegrees(euler.x),
 							(float) Math.toDegrees(euler.y),
 							(float) Math.toDegrees(euler.z)),
@@ -307,7 +308,7 @@ public abstract class PocketBuildContentLayerMixin {
 			for (int i = before; i < after; i++) {
 				ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
 				Vector3fc s = it.scale();
-				layers[i].setItemTransform(new ItemTransform(it.rotation(), it.translation(),
+				layers[i].setTransform(new ItemTransform(it.rotation(), it.translation(),
 						new Vector3f(s.x() * factor, s.y() * factor, s.z() * factor)));
 			}
 		}
@@ -329,8 +330,14 @@ public abstract class PocketBuildContentLayerMixin {
 				.scale(BLOCK_CONTENT_SCALE)
 				.translate(-BOX_CENTER, -BOX_CENTER, -BOX_CENTER);
 		for (int i = before; i < after; i++) {
-			Matrix4f fit = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getLocalTransform();
-			layers[i].setLocalTransform(new Matrix4f(localTransform).mul(fit));
+			// A special renderer's model-fitting transform (26.x kept it in localTransform). On 1.21.11 a freshly
+			// appended layer has no localTransform yet (null = identity), so compose only when one is present.
+			Matrix4f fit = ((PocketBuildContentLayer) (Object) layers[i]).shulkerInventory$getLocalTransform();
+			Matrix4f composed = new Matrix4f(localTransform);
+			if (fit != null) {
+				composed.mul(fit);
+			}
+			((PocketBuildContentLayer) (Object) layers[i]).shulkerInventory$setLocalTransform(composed);
 		}
 	}
 
@@ -353,7 +360,7 @@ public abstract class PocketBuildContentLayerMixin {
 			for (int i = before; i < after; i++) {
 				ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
 				Vector3fc t = it.translation();
-				layers[i].setItemTransform(new ItemTransform(it.rotation(),
+				layers[i].setTransform(new ItemTransform(it.rotation(),
 						new Vector3f(t.x() + offX, t.y() + offY, t.z() + offZ), it.scale()));
 			}
 		}
@@ -371,10 +378,10 @@ public abstract class PocketBuildContentLayerMixin {
 		}
 		ShulkerBoxSpecialRendererAccessor acc = (ShulkerBoxSpecialRendererAccessor) shulker;
 		ShulkerBoxSpecialRenderer separate = CONTENT_SHULKER_RENDERERS.computeIfAbsent(acc.shulkerInventory$getSprite(), s -> {
-			SpriteGetter sprites = ((ShulkerBoxRendererAccessor) acc.shulkerInventory$getShulkerBoxRenderer())
+			MaterialSet sprites = ((ShulkerBoxRendererAccessor) acc.shulkerInventory$getShulkerBoxRenderer())
 					.shulkerInventory$getSprites();
 			ShulkerBoxRenderer freshRenderer = new ShulkerBoxRenderer(Minecraft.getInstance().getEntityModels(), sprites);
-			return new ShulkerBoxSpecialRenderer(freshRenderer, 0.0f, s);
+			return new ShulkerBoxSpecialRenderer(freshRenderer, 0.0f, acc.shulkerInventory$getOrientation(), s);
 		});
 		((LayerRenderStateAccessor) layer).shulkerInventory$setSpecialRenderer(separate);
 	}
@@ -391,10 +398,10 @@ public abstract class PocketBuildContentLayerMixin {
 		}
 		ShulkerBoxSpecialRenderer separate = ClientShulkerSession.separatedBoxRenderer(id, () -> {
 			ShulkerBoxSpecialRendererAccessor acc = (ShulkerBoxSpecialRendererAccessor) shulker;
-			SpriteGetter sprites = ((ShulkerBoxRendererAccessor) acc.shulkerInventory$getShulkerBoxRenderer())
+			MaterialSet sprites = ((ShulkerBoxRendererAccessor) acc.shulkerInventory$getShulkerBoxRenderer())
 					.shulkerInventory$getSprites();
 			ShulkerBoxRenderer freshRenderer = new ShulkerBoxRenderer(Minecraft.getInstance().getEntityModels(), sprites);
-			return new ShulkerBoxSpecialRenderer(freshRenderer, 0.0f, acc.shulkerInventory$getSprite());
+			return new ShulkerBoxSpecialRenderer(freshRenderer, 0.0f, acc.shulkerInventory$getOrientation(), acc.shulkerInventory$getSprite());
 		});
 		if (separate != null) {
 			((LayerRenderStateAccessor) layer).shulkerInventory$setSpecialRenderer(separate);
@@ -435,7 +442,12 @@ public abstract class PocketBuildContentLayerMixin {
 			LayerRenderStateAccessor layer = (LayerRenderStateAccessor) layers[i];
 			PoseStack.Pose pose = new PoseStack.Pose();
 			layer.shulkerInventory$getItemTransform().apply(leftHand, pose);
-			Matrix4f m = new Matrix4f(pose.pose()).mul(layer.shulkerInventory$getLocalTransform());
+			Matrix4f m = new Matrix4f(pose.pose());
+			// The box's own layers carry no localTransform on 1.21.11 (null = identity); only our content layers do.
+			Matrix4f lt = ((PocketBuildContentLayer) (Object) layers[i]).shulkerInventory$getLocalTransform();
+			if (lt != null) {
+				m.mul(lt);
+			}
 			for (Vector3fc extent : layer.shulkerInventory$getExtents().get()) {
 				any = true;
 				scratch.set(extent).mulPosition(m);

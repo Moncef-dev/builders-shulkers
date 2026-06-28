@@ -1,7 +1,7 @@
 package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.item.TrackingItemStackRenderState;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
@@ -13,10 +13,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 // Marks an animating shulker's GUI render state as animated and tags it with the animation id, so the atlas
-// draw can publish that id for the openness mixin to consume.
-@Mixin(GuiGraphicsExtractor.class)
+// draw can publish that id for the openness mixin to consume. On 1.21.11 the GUI item draw with the updateForTopItem
+// call is the PRIVATE GuiGraphics.renderItem(LivingEntity, Level, ItemStack, int, int, int) (the public 5-arg overload
+// just delegates to it); 26.x had it as GuiGraphicsExtractor.item with the same Level parameter. The inner
+// updateForTopItem call where we capture the tracking render state is identical.
+@Mixin(GuiGraphics.class)
 public abstract class ShulkerAnimatedMixin {
-	@Inject(method = "item(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/item/ItemStack;III)V",
+	@Inject(method = "renderItem(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/item/ItemStack;III)V",
 			at = @At(value = "INVOKE",
 					target = "Lnet/minecraft/client/renderer/item/ItemModelResolver;updateForTopItem(Lnet/minecraft/client/renderer/item/ItemStackRenderState;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/ItemOwner;I)V",
 					shift = At.Shift.AFTER),
