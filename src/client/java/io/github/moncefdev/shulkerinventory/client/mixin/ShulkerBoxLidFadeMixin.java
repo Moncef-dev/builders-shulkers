@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.moncefdev.shulkerinventory.client.ClientConfig;
 import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
+import io.github.moncefdev.shulkerinventory.client.DissolveTexture;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -22,11 +23,14 @@ import org.spongepowered.asm.mixin.injection.At;
 // pass, composited in a context-dependent order we do not control). Instead the lid uses a vanilla alpha-dissolve render
 // type that discards fragments below an alpha threshold: it writes depth and never blends, so it is order-INDEPENDENT
 // (the opaque content shows through the discarded texels in every context, and nothing behind is masked through the
-// holes). On 1.21.11 that render type is dragonExplosionAlpha (the EnderDragon death effect), driven by the tint alpha
-// exactly like vanilla drives it (ARGB.white(deathTime/200)); 26.x instead has entityCutoutDissolve with a separate mask
-// texture. The tint alpha here is (1 - progress), so the lid dissolves smoothly to nothing. The base is always submitted
-// opaque, separately. setupAnim has already run, so both parts are positioned for the current openness. Untouched for any
-// other shulker (placed blocks, non-Pocket-Build animations), which take the original single submit.
+// holes). On 1.21.11 that render type is dragonExplosionAlpha (the EnderDragon death effect): its shader discards where
+// the SAMPLED texture's alpha is below the tint alpha. The dragon's own texture carries an alpha gradient; the shulker's
+// is opaque, so sampling it gives no fade. We instead sample DissolveTexture - a runtime clone of the shulker atlas with
+// the alpha replaced by noise, RGB preserved - so the gradient is there and the lid dissolves evenly as the tint alpha
+// (1 - progress) sweeps it. 26.x gets this for free from vanilla's entityCutoutDissolve + a separate mask sampler, which
+// 1.21.11 lacks. The base is always submitted opaque, separately. setupAnim has already run, so both parts are positioned
+// for the current openness. Untouched for any other shulker (placed blocks, non-Pocket-Build animations), which take the
+// original single submit.
 //
 // 1.21.11 deltas vs 26.x: ShulkerBoxRenderer.submit carries the box orientation (Direction) and a Material (26.x dropped
 // the Direction and uses a SpriteId); submitModel/submitModelPart take a RenderType + TextureAtlasSprite (the wrapped
@@ -77,11 +81,16 @@ public abstract class ShulkerBoxLidFadeMixin {
 						tintedColor, crumblingOverlay, outlineColor);
 			}
 		} else {
-			// DISSOLVE: order-independent alpha-dissolve, threshold driven by tint alpha = 1 - progress, until fully gone.
+			// DISSOLVE: order-independent alpha-dissolve, threshold driven by tint alpha = progress, until fully gone.
 			if (progress < LID_HIDE_OPENNESS) {
-				RenderType dissolve = RenderTypes.dragonExplosionAlpha(atlasSprite.atlasLocation());
+				// Sample a runtime clone of the shulker atlas whose alpha is replaced by noise (DissolveTexture): the shader
+				// discards on the SAMPLED texture's alpha, and the real shulker texture is opaque (no gradient = no fade), so
+				// we feed it the noise instead. Same sprite (so the UVs are unchanged) but the box's own RGB is preserved.
+				// The 1.21.11 shader discards where noise < tint.alpha (threshold on the RIGHT), the opposite of 26.x's
+				// "tint < mask", so the threshold must RISE with the open: tint alpha = progress (0 = whole lid, 1 = gone).
+				RenderType dissolve = RenderTypes.dragonExplosionAlpha(DissolveTexture.forSprite(atlasSprite));
 				collector.submitModelPart(lid, poseStack, dissolve, lightCoords, overlayCoords, atlasSprite, false, false,
-						ARGB.white(1.0f - progress), crumblingOverlay, outlineColor);
+						ARGB.white(progress), crumblingOverlay, outlineColor);
 			}
 		}
 	}

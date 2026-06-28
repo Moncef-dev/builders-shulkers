@@ -11,6 +11,7 @@
 		"ShulkerBoxLidFadeMixin",
 		"ShulkerBoxSpecialRendererAccessor",
 		"ShulkerBoxRendererAccessor",
+		"SpriteContentsAccessor",
 		"ItemStackRenderStateAccessor",
 		"LayerRenderStateAccessor",
 		"LayerRenderStateContentMixin",

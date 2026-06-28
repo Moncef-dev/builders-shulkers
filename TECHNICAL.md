@@ -501,16 +501,19 @@ MOVES, so the two are set independently.
 - The three effects (`ShulkerBoxLidFadeMixin`, `@WrapOperation` on the lid model submit; applied only to the live
   Pocket-Build lid, never a placed shulker):
   - NONE: the original single opaque submit - the lid is solid and just lifts or stays per the position above.
-  - DISSOLVE: the base is drawn opaque and the lid with the vanilla `entityCutoutDissolve` render type (the Ender
-    Dragon death effect), tinted `ARGB.white(1 - progress)`. The shader discards a texel when `(1 - progress)` falls
-    below that texel's threshold in a mask texture. Cutout WRITES depth and never blends, so it is ORDER-INDEPENDENT:
-    the opaque content shows through the holes in every context, and nothing behind the shulker (water, clouds) is
-    masked through them - the exact two failures a real translucent fade could not avoid (a fade is composited across
-    the item/model pass boundary in a context-dependent order the engine fixes, so it was abandoned).
-  - DISAPPEAR: the lid is submitted opaque (a plain `entityCutout`, identical to a vanilla closed lid) ONLY while the
-    status is CLOSING, and not submitted at all while opening/open - a draw-call on/off keyed on the lifecycle status,
-    NEVER a translucent pass, so it cannot mask anything behind it either. It vanishes the instant opening starts and
-    reappears the instant closing starts (instant both ways, independent of the lift).
+  - DISSOLVE: the base is drawn opaque and the lid with the vanilla `dragonExplosionAlpha` render type (the Ender
+    Dragon death effect), tinted `ARGB.white(progress)`. Its `entity_alpha` shader discards a texel when the SAMPLED
+    texture's alpha is below the tint alpha, so the threshold RISES with the open (progress 0 = whole lid, 1 = gone).
+    Cutout WRITES depth and never blends, so it is ORDER-INDEPENDENT: the opaque content shows through the holes in
+    every context, and nothing behind the shulker (water, clouds) is masked through them - the exact two failures a real
+    translucent fade could not avoid (a fade is composited across the item/model pass boundary in a context-dependent
+    order the engine fixes, so it was abandoned). What the lid samples to get a usable gradient, and the one render
+    divergence this carries, are in "Recreating the dissolve on this line" below.
+  - DISAPPEAR: the lid is submitted opaque (the box's own render type, identical to a vanilla closed lid) while it is
+    still below the fully-open position, and not submitted once fully open - a draw-call on/off keyed on the openness,
+    NEVER a translucent pass, so it cannot mask anything behind it either. So the lid lifts WITH the open and vanishes
+    only once openness reaches 1, then reappears the instant a close starts moving it back down (symmetric with the
+    close).
 - Instant close when the lift is off. With "Pocket-Build animations" (or "Inventory animations") off, the close no
   longer lingers at the resting state for the whole ~10-tick drain: the openness override snaps the position to 0 on
   the FIRST frame of the close (CLOSING status), while the effect still plays its own transition on top.
@@ -519,20 +522,29 @@ MOVES, so the two are set independently.
   reading the published openness, dissolve progress, effect, and status). So a solid closed lid hides the content
   (otherwise a tall flat content - a boat - would poke out of a visually-closed box for the whole close drain), while
   Dissolve/Disappear still REVEAL the content from a closed lid position, because the lid is not opaque there.
-- The dissolve mask is generated at runtime (`DissolveMask`), not shipped as a file. The shader reads ONLY the mask's alpha
-  (at the lid's UVs), so the mask is a 512x512 texture whose alpha is filled from a per-texel integer hash - an even,
-  uncorrelated spread of thresholds (white noise) - with RGB left unused. The exact pattern never mattered, only that
-  the thresholds are uniform, so a deterministic hash replaces a stored 512x512 RGBA PNG (three dead channels and
-  ~400 KB) with no visible change. 512x512 keeps the effective texel density over the shulker atlas sub-rectangle, and
-  the texture samples NEAREST, so the dissolve grain stays aligned with the box's own 16-pixels-per-face art. It is a
-  `DynamicTexture` (not a `ReloadableTexture`), so a resource reload leaves it in place.
+- Recreating the dissolve on this line, and its one render divergence. This render path has no separate dissolve-mask
+  sampler: `dragonExplosionAlpha` runs the `entity_alpha` shader, which discards a fragment where the SAMPLED texture's
+  OWN alpha is below the tint alpha. The Ender Dragon dissolves because it samples a texture (`dragon_exploding.png`)
+  whose alpha is a gradient; shulker textures are fully opaque (binary alpha), so sampling them gives no gradient and no
+  fade (the lid would stay solid then pop). So `DissolveTexture` builds, at runtime, a clone of the stitched shulker
+  atlas with the RGB kept and the alpha of every opaque texel replaced by uniform per-texel hash noise; the lid samples
+  that clone, and the tint alpha (= progress) sweeps the noise to dissolve the lid evenly. One clone covers every colour
+  (and modded / HD textures): copying the already-stitched atlas keeps each colour at its own position and size, and the
+  lid keeps its own sprite UVs, so each box samples its own region with the right RGB. The clone is filled lazily, per
+  sprite first dissolved, from the live (resource-pack-applied) sprite image read through `SpriteContentsAccessor`;
+  entries are keyed by `SpriteContents` identity in a `WeakHashMap`, so a resource reload's fresh sprites are re-copied
+  automatically (and the stale ones garbage-collected) with no reload listener.
+  - Divergence - lighting. `entity_alpha` outputs the raw texture colour (`fragColor = color`); it does not multiply by
+    the lightmap. Unlike the 26.x line, where vanilla provides a LIT dissolve (`entityCutoutDissolve`, which multiplies
+    by the lightmap and reads a SEPARATE mask sampler), 1.21.11 has no lit threshold-by-tint render type. So the
+    dissolving lid is FULLBRIGHT for the brief open: close to correct in daylight, slightly glowing in the dark. It is
+    accepted rather than fixed because the only lit alternative is a custom render pipeline, which a shader pack (Iris)
+    replaces and would not run, and which re-implements rendering instead of reusing a vanilla render type - trading
+    away both compatibility and the Vanilla+ guarantee for a transient cosmetic. The base and the non-dissolving lid
+    (NONE / DISAPPEAR) keep the box's own LIT render type, so only the dissolving lid is affected.
   - Concession - texel granularity. The dissolve grain is the shulker texture's resolution, not the screen's, because
-    the mask is sampled at the model's UVs. A custom screen-space dither shader would give per-screen-pixel grain at
-    any zoom, but that is a custom render pipeline: a shader pack (Iris) replaces the pipeline and would not run it,
-    and it re-implements rendering rather than reusing a vanilla render type, so it trades away both compatibility and
-    the Vanilla+ guarantee. Reusing the vanilla dissolve was preferred.
-  - The mask lives in the mod's namespace and the discard is driven by the mask alpha (not the shulker texture's
-    pixels), so a resource pack that retextures the shulker still dissolves identically.
+    the noise is sampled at the model's UVs. Same reasoning as the lighting divergence: a screen-space dither shader
+    would be a custom pipeline. Reusing the vanilla render type was preferred.
 - The dissolve runs for the whole Pocket-Build open, including an empty selection (so the lid behaves the same whether
   or not a block is selected): it is gated on `ClientShulkerSession.isPocketBuild` (a per-animation flag set when the
   mode opens the box), NOT on the content being present. It is scoped to the local player's live held shulker through
