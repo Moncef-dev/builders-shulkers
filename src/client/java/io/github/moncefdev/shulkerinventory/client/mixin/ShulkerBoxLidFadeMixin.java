@@ -59,9 +59,12 @@ public abstract class ShulkerBoxLidFadeMixin {
 		// The effect tracks the animation's RAW progress (published by the openness override), not the openness arg, which
 		// may be frozen at the resting lid state when the animation is off - so the lid clears without moving.
 		float progress = ClientShulkerSession.currentDissolveProgress();
-		RenderType cutout = RenderTypes.entityCutout(atlasSprite.atlasLocation());
-		// Base: always opaque cutout, original tint.
-		collector.submitModelPart(base, poseStack, cutout, lightCoords, overlayCoords, atlasSprite, false, false,
+		// Base + opaque lid reuse the box's OWN render type (the one the un-split vanilla submit uses), not a freshly
+		// built entityCutout: the shulker's render type is NO-CULL (it shows its interior walls), so forcing entityCutout
+		// culled the back faces and left the base looking half-transparent. Reusing renderType keeps it identical to
+		// vanilla and still order-independent (it is a cutout: writes depth, no blend).
+		// Base: always opaque, original tint.
+		collector.submitModelPart(base, poseStack, renderType, lightCoords, overlayCoords, atlasSprite, false, false,
 				tintedColor, crumblingOverlay, outlineColor);
 		if (effect == ClientConfig.LidEffect.DISAPPEAR) {
 			// Lid present (opaque, original tint - identical to a vanilla closed lid) only while CLOSING; while opening or
