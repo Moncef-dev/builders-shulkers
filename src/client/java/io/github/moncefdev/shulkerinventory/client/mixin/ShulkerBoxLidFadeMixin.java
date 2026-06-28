@@ -60,11 +60,12 @@ public abstract class ShulkerBoxLidFadeMixin {
 		collector.submitModelPart(base, poseStack, sprite.renderType(RenderTypes::entityCutout), lightCoords,
 				overlayCoords, atlasSprite, tintedColor, crumblingOverlay, outlineColor);
 		if (effect == ClientConfig.LidEffect.DISAPPEAR) {
-			// Lid present (opaque, original tint - identical to a vanilla closed lid) only while CLOSING; while opening or
-			// open it is simply not submitted. Keyed on the lifecycle STATUS, not the progress, so it vanishes the instant
-			// opening starts AND reappears the instant closing starts (instant both ways, decoupled from the lift). A
-			// draw-call on/off, never a fade, so it cannot mask anything behind it.
-			if (ClientShulkerSession.currentRenderStatus() == ClientShulkerSession.AnimationStatus.CLOSING) {
+			// Lid present (opaque, original tint - identical to a vanilla closed lid) and lifting WITH the animation until
+			// the box is fully open; it vanishes only once the openness reaches 1, and reappears the instant a close
+			// starts moving it back down. Keyed on the openness (progress), not the lifecycle status, so it follows the
+			// lift instead of popping out the moment opening starts. A draw-call on/off, never a fade, so it cannot mask
+			// anything behind it.
+			if (progress < LID_HIDE_OPENNESS) {
 				collector.submitModelPart(lid, poseStack, sprite.renderType(RenderTypes::entityCutout), lightCoords,
 						overlayCoords, atlasSprite, tintedColor, crumblingOverlay, outlineColor);
 			}
