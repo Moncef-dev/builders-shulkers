@@ -29,6 +29,9 @@ public abstract class ShulkerBoxOpennessMixin {
 		if (id == 0L || content) {
 			return original;
 		}
+		// The render is now following this animation: release a deferred local open so it starts lifting from here
+		// (its current progress) instead of from wherever it would have ticked to during the open round-trip.
+		ClientShulkerSession.markRendered(id);
 		Minecraft mc = Minecraft.getInstance();
 		float progress = ClientShulkerSession.getInterpolatedProgress(id,
 				mc.getDeltaTracker().getGameTimeDeltaPartialTick(false));

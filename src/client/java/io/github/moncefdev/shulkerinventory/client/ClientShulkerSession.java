@@ -44,6 +44,16 @@ public final class ClientShulkerSession {
 		// same colour (even static, openness 0) would otherwise reset this box's lid to closed at draw. Lives on the
 		// animation, so it is freed with it when it drains - no separate cleanup.
 		ShulkerBoxSpecialRenderer separatedBoxRenderer = null;
+		// A LOCAL open (the local player's own, via beginHeldOpening), as opposed to a remote one mirrored from a
+		// broadcast. Only local opens get the deferred-progress treatment below; remote viewers keep advancing on tick so
+		// a box that opens off-screen is already open when looked at.
+		boolean local = false;
+		// Whether the render path has followed this animation at least once (the openness override marks it). A local open
+		// holds its OPENING progress until this flips true, so it starts lifting from where the render first picks it up
+		// rather than from wherever it silently ticked to during the open round-trip (the server writes the animation_id
+		// marker onto the held stack and syncs it back only a round-trip later; until then the hand has no marker to
+		// resolve, so it cannot follow the animation - and the lid used to jump from 0 to ~0.1 the instant it could).
+		boolean rendered = false;
 	}
 
 	public record AnimationMarker(long animationId) {}
@@ -167,6 +177,10 @@ public final class ClientShulkerSession {
 		anim.status = AnimationStatus.OPENING;
 		anim.progress = resume;
 		anim.progressOld = resume;
+		// Local open: hold the OPENING progress until the render first follows it (see AnimationState.rendered), so the
+		// lid starts lifting from 0 instead of bumping to wherever it ticked during the open round-trip.
+		anim.local = true;
+		anim.rendered = false;
 		if (armScreen) {
 			pendingIdForScreen = newId;
 			pendingIdTtl = PENDING_OPEN_GRACE_TICKS;
@@ -219,6 +233,11 @@ public final class ClientShulkerSession {
 			anim.progressOld = anim.progress;
 			switch (anim.status) {
 				case OPENING -> {
+					// A local open does not advance until the render has followed it once, so it starts lifting from 0
+					// the moment it becomes renderable (marker synced / screen associated) rather than mid-animation.
+					if (anim.local && !anim.rendered) {
+						break;
+					}
 					anim.progress += 0.1f;
 					if (anim.progress >= 1f) {
 						anim.progress = 1f;
@@ -260,6 +279,16 @@ public final class ClientShulkerSession {
 
 	public static boolean isAnimating(long animationId) {
 		return animations.containsKey(animationId);
+	}
+
+	// Marks that the render path has followed this animation, releasing a deferred local open so it can start advancing
+	// from where the render first picked it up (see AnimationState.rendered). Called by the openness override each time it
+	// resolves the box. No-op once already set, or if the animation has ended.
+	public static void markRendered(long animationId) {
+		AnimationState anim = animations.get(animationId);
+		if (anim != null) {
+			anim.rendered = true;
+		}
 	}
 
 	// The animation's current lifecycle status (OPENING / OPENED / CLOSING), or null if there is no live animation for
