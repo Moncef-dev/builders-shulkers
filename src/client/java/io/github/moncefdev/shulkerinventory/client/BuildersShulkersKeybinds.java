@@ -3,7 +3,7 @@ package io.github.moncefdev.shulkerinventory.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.moncefdev.shulkerinventory.client.gui.BuildersShulkersSettingsScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
@@ -28,22 +28,22 @@ public final class BuildersShulkersKeybinds {
 		KeyMapping.Category category = KeyMapping.Category.register(
 				Identifier.fromNamespaceAndPath("builders-shulkers", "main"));
 		// Open the settings screen (default B, in-game only).
-		openSettings = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+		openSettings = KeyBindingHelper.registerKeyBinding(new KeyMapping(
 				"key.builders-shulkers.open_settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
 		// Held together with right-click to enter/exit Pocket-Build (default Left Control), read via isDown() at the use.
-		pocketBuildModifier = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+		pocketBuildModifier = KeyBindingHelper.registerKeyBinding(new KeyMapping(
 				"key.builders-shulkers.pocket_build_modifier", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, category));
 		// Single press to enter/exit Pocket-Build (unbound by default; a one-button path for controller / mobile play).
-		pocketBuildToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+		pocketBuildToggle = KeyBindingHelper.registerKeyBinding(new KeyMapping(
 				"key.builders-shulkers.pocket_build_toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category));
 		// Held to show the contents-peek overlay (default Left Control), read via isDown().
-		peek = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+		peek = KeyBindingHelper.registerKeyBinding(new KeyMapping(
 				"key.builders-shulkers.peek", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, category));
 
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			while (openSettings.consumeClick()) {
-				if (mc.gui.screen() == null) {
-					mc.gui.setScreen(new BuildersShulkersSettingsScreen(null));
+				if (mc.screen == null) {
+					mc.setScreen(new BuildersShulkersSettingsScreen(null));
 				}
 			}
 			// Toggle on the rising edge of isDown() only: holding the key must NOT keep re-firing (in 26.x the keybind

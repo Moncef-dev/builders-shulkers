@@ -12,7 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -126,7 +126,7 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	}
 
 	@Override
-	public void clicked(int slotId, int button, ContainerInput input, Player player) {
+	public void clicked(int slotId, int button, ClickType input, Player player) {
 		// Commit-on-disturbance (anti-dup): if the action targets the source shulker stack itself, save the
 		// worked contents into it, end the session, then replay the action on the inventory menu. Saving always
 		// happens before the move, so the up-to-date stack is what gets picked up or relocated.
@@ -134,12 +134,12 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		// only drops from the hovered slot when the cursor is empty - verified in AbstractContainerMenu.doClick), so it
 		// does not disturb the source. Let it fall through to vanilla (which does nothing) instead of pointlessly
 		// closing the session.
-		boolean noOpDrop = input == ContainerInput.THROW && !getCarried().isEmpty();
+		boolean noOpDrop = input == ClickType.THROW && !getCarried().isEmpty();
 		if (touchesSourceSlot(slotId, button, input) && !noOpDrop) {
 			disturbed = true;
 			// A THROW on the source slot (drop key) sends the box to the world as a visible item; a PICKUP/SWAP sends it
 			// to the cursor or another slot. Only the drop keeps the close sound for viewers (see removed()).
-			droppedToWorld = input == ContainerInput.THROW;
+			droppedToWorld = input == ClickType.THROW;
 			broadcastFullState();
 			if (player instanceof ServerPlayer serverPlayer) {
 				saveContents(serverPlayer);
@@ -169,7 +169,7 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		serverPlayer.inventoryMenu.setCarried(carriedSnapshot);
 	}
 
-	private void replayClickOnInventoryMenu(ServerPlayer serverPlayer, int slotId, int button, ContainerInput input) {
+	private void replayClickOnInventoryMenu(ServerPlayer serverPlayer, int slotId, int button, ClickType input) {
 		if (slotId < 0 || slotId >= this.slots.size()) {
 			return;
 		}
@@ -184,11 +184,11 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 		serverPlayer.inventoryMenu.clicked(targetSlot, button, input, serverPlayer);
 	}
 
-	private boolean touchesSourceSlot(int slotId, int button, ContainerInput input) {
+	private boolean touchesSourceSlot(int slotId, int button, ClickType input) {
 		if (slotId == sourceSlotInMenu) {
 			return true;
 		}
-		if (input == ContainerInput.SWAP && button == sourceSlotIndex) {
+		if (input == ClickType.SWAP && button == sourceSlotIndex) {
 			return true;
 		}
 		return false;

@@ -21,7 +21,7 @@ public abstract class MouseHandlerScrollMixin {
 			return;
 		}
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.player == null || mc.gui.screen() != null) {
+		if (mc.player == null || mc.screen != null) {
 			return;
 		}
 		double amount = yOffset != 0.0 ? yOffset : xOffset;

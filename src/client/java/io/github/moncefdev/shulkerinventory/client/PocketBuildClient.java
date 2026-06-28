@@ -105,7 +105,7 @@ public final class PocketBuildClient {
 			boolean stillShulker = ShulkerContents.isShulker(held);
 			// Only opening a container UI (the player's own inventory, a chest, any container) ends the mode, like
 			// the chest GUI flow. The pause menu, options, chat, etc. leave the mode running.
-			if (mc.gui.screen() instanceof AbstractContainerScreen || !stillShulker
+			if (mc.screen instanceof AbstractContainerScreen || !stillShulker
 					|| mc.player.getInventory().getSelectedSlot() != PocketBuildMode.sourceHotbarSlot()) {
 				exitMode();
 				return;
@@ -172,7 +172,7 @@ public final class PocketBuildClient {
 		// right-click then pressing the modifier does not enter mid-build.
 		ItemStack held = player.getMainHandItem();
 		if (modifier && pressEdge && ShulkerContents.isShulker(held)
-				&& mc.gui.screen() == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)
+				&& mc.screen == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)
 				&& ClientGameRuleState.pocketBuild()) {
 			enterMode(player, held);
 			return InteractionResult.FAIL;
@@ -228,7 +228,7 @@ public final class PocketBuildClient {
 			return;
 		}
 		ItemStack held = mc.player.getMainHandItem();
-		if (ShulkerContents.isShulker(held) && mc.gui.screen() == null
+		if (ShulkerContents.isShulker(held) && mc.screen == null
 				&& ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE) && ClientGameRuleState.pocketBuild()) {
 			enterMode(mc.player, held);
 		}

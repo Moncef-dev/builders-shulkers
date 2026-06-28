@@ -32,10 +32,7 @@
 	"depends": {
 		"fabricloader": ">=0.19.2",
 		"minecraft": "${minecraft_dep}",
-		"java": ">=25",
+		"java": ">=21",
 		"fabric-api": "*"
-	},
-	"suggests": {
-		"litematica": "*"
 	}
 }

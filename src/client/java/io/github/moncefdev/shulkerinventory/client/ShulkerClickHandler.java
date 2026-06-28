@@ -6,7 +6,7 @@ import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
@@ -15,8 +15,8 @@ public final class ShulkerClickHandler {
 
 	// Starts an open (and returns true) only for a plain right-click, with an empty cursor, on a shulker box in
 	// one of the player's own non-equipment inventory slots. Anything else falls through to vanilla handling.
-	public static boolean tryHandleSlotClick(Slot slot, int slotId, int mouseButton, ContainerInput input) {
-		if (input != ContainerInput.PICKUP || mouseButton != 1 || slot == null) return false;
+	public static boolean tryHandleSlotClick(Slot slot, int slotId, int mouseButton, ClickType input) {
+		if (input != ClickType.PICKUP || mouseButton != 1 || slot == null) return false;
 
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null) return false;

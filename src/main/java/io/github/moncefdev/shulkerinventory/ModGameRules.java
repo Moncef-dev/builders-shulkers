@@ -37,10 +37,10 @@ public final class ModGameRules {
 	}
 
 	public static boolean inventoryAccess(MinecraftServer server) {
-		return server.getGameRules().get(INVENTORY_ACCESS);
+		return server.overworld().getGameRules().get(INVENTORY_ACCESS);
 	}
 
 	public static boolean pocketBuild(MinecraftServer server) {
-		return server.getGameRules().get(POCKET_BUILD);
+		return server.overworld().getGameRules().get(POCKET_BUILD);
 	}
 }

@@ -30,13 +30,13 @@ public class ShulkerInventory implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		PayloadTypeRegistry.serverboundPlay().register(OpenShulkerPayload.TYPE, OpenShulkerPayload.STREAM_CODEC);
-		PayloadTypeRegistry.serverboundPlay().register(PocketBuildModePayload.TYPE, PocketBuildModePayload.STREAM_CODEC);
-		PayloadTypeRegistry.serverboundPlay().register(PocketBuildSelectPayload.TYPE, PocketBuildSelectPayload.STREAM_CODEC);
-		PayloadTypeRegistry.clientboundPlay().register(OpenPlayerInventoryPayload.TYPE, OpenPlayerInventoryPayload.STREAM_CODEC);
-		PayloadTypeRegistry.clientboundPlay().register(RemoteShulkerAnimationPayload.TYPE, RemoteShulkerAnimationPayload.STREAM_CODEC);
-		PayloadTypeRegistry.clientboundPlay().register(PocketBuildRemoteContentPayload.TYPE, PocketBuildRemoteContentPayload.STREAM_CODEC);
-		PayloadTypeRegistry.clientboundPlay().register(GameRuleStatePayload.TYPE, GameRuleStatePayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(OpenShulkerPayload.TYPE, OpenShulkerPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(PocketBuildModePayload.TYPE, PocketBuildModePayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(PocketBuildSelectPayload.TYPE, PocketBuildSelectPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playS2C().register(OpenPlayerInventoryPayload.TYPE, OpenPlayerInventoryPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playS2C().register(RemoteShulkerAnimationPayload.TYPE, RemoteShulkerAnimationPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playS2C().register(PocketBuildRemoteContentPayload.TYPE, PocketBuildRemoteContentPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playS2C().register(GameRuleStatePayload.TYPE, GameRuleStatePayload.STREAM_CODEC);
 
 		// Feature toggles exposed as vanilla game rules (default true). Their values are synced to clients (on join and
 		// on change) so the client can gate its own interception, since custom game rules are not synced automatically.

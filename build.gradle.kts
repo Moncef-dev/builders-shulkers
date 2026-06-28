@@ -1,26 +1,28 @@
 plugins {
-    id("net.fabricmc.fabric-loom") version "1.16-SNAPSHOT"
+    // 1.21.x is the last obfuscated Minecraft line. Modern loom ships two plugin variants: "fabric-loom" (for the
+    // deobfuscated 26.x line, used on that branch) and "fabric-loom-remap" (obfuscation-aware: it remaps the compiled
+    // classes back to obfuscated names and accepts official Mojang mappings). 1.21.x needs the -remap variant; using
+    // plain "fabric-loom" fails with "Cannot use Mojang mappings in a non-obfuscated environment". The -remap variant
+    // is what matters, NOT the loom version: we use loom 1.16 (same as the 26.x branch) because the 1.21.11 Litematica
+    // and malilib builds were themselves built with loom 1.16.3, and loom refuses to depend on a mod built with a
+    // newer loom than itself - so loom 1.14 was rejected. (The blog's "use loom 1.14" advice predates loom 1.16.)
+    id("net.fabricmc.fabric-loom-remap") version "1.16-SNAPSHOT"
 }
 
 val minecraftVersion = stonecutter.current.version
 
-// Jar filename label: the 26.1.2 build covers the whole 26.1.x family, so its jar is named fabric-26.1.x to make that
-// clear to users on any 26.1 patch; every other build is named by its exact version. Edit when a build's family changes.
+// Jar filename label: each build is named by its exact version for now. When the 1.21.x family gains more than one
+// patch, widen this to a family label (e.g. 1.21.x) the same way the 26.x branch does. Edit when a build's family changes.
 val jarMcLabel = when (minecraftVersion) {
-    "26.1.2" -> "26.1.x"
     else -> minecraftVersion
 }
 
 // Per-version pins, keyed on the active Minecraft version (one entry per build target):
-// [Fabric Loader, Fabric API, Litematica (Modrinth version), malilib (Modrinth version), mod dependency range].
-// The range is normally the patch-family of the active version (e.g. ~26.2 = >=26.2.0 <26.3.0). The 26.1.2 build
-// widens to ~26.1 (>=26.1.0 <26.2.0) because it also runs on 26.1 and 26.1.1: those patches change no class the mod
-// touches (verified by bytecode diff - only DetectedVersion/SharedConstants and an unrelated method-body change in
-// ServerGamePacketListenerImpl, whose handleContainerClose signature is unchanged), so one jar covers the whole 26.1.x
-// family. Each build still COMPILES against its exact minecraftVersion; the range only widens the runtime metadata.
-val (loaderVersion, fabricApiVersion, litematicaVersion, malilibVersion, minecraftDep) = when (minecraftVersion) {
-    "26.1.2" -> listOf("0.19.2", "0.150.0+26.1.2", "0.27.6", "0.28.6", "~26.1")
-    "26.2" -> listOf("0.19.3", "0.152.1+26.2", "0.28.0", "0.29.0", "~26.2")
+// [Fabric Loader, Fabric API, mod dependency range]. The range is the patch-family of the active version
+// (e.g. ~1.21.11 = >=1.21.11 <1.22.0). Each build COMPILES against its exact minecraftVersion. (Litematica/malilib
+// interop is deferred on this branch; it will be re-added with its own dependency pins when re-tested.)
+val (loaderVersion, fabricApiVersion, minecraftDep) = when (minecraftVersion) {
+    "1.21.11" -> listOf("0.19.3", "0.141.4+1.21.11", "~1.21.11")
     else -> error("Unconfigured Minecraft version: $minecraftVersion")
 }
 
@@ -54,25 +56,18 @@ loom {
     }
 }
 
-repositories {
-    // Litematica + malilib (optional, compile-only interop dependency), pulled from the Modrinth maven. Scoped to the
-    // maven.modrinth group so it is never consulted for anything else.
-    exclusiveContent {
-        forRepository { maven("https://api.modrinth.com/maven") }
-        filter { includeGroup("maven.modrinth") }
-    }
-}
-
 dependencies {
     minecraft("com.mojang:minecraft:$minecraftVersion")
-    implementation("net.fabricmc:fabric-loader:$loaderVersion")
-    implementation("net.fabricmc.fabric-api:fabric-api:$fabricApiVersion")
-
-    // Litematica interop: OPTIONAL, client-only, compile-only (never bundled nor required at runtime). The compat class
-    // is loaded only when Litematica is present (isModLoaded gate + the suggests entry in fabric.mod.json). Compiled
-    // against the Litematica/malilib build matching the active Minecraft version; the user provides them at runtime.
-    "clientCompileOnly"("maven.modrinth:litematica:$litematicaVersion")
-    "clientCompileOnly"("maven.modrinth:malilib:$malilibVersion")
+    // 1.21.x is obfuscated: we develop against Mojang's official mappings (Mojmap), and loom remaps the compiled
+    // classes back to obfuscated names in remapJar. Our source already uses Mojmap names (shared with the 26.x branch),
+    // so this is the matching mapping set. Without this line loom would leave the jar fully obfuscated.
+    "mappings"(loom.officialMojangMappings())
+    // On obfuscated versions, Fabric Loader / Fabric API ship in intermediary mappings, so they MUST go through the
+    // mod* configurations: loom then remaps them to our Mojmap mappings. (The 26.x branch uses plain implementation
+    // because those deobfuscated artifacts are already in Mojmap and need no remap.) Using implementation here leaks
+    // intermediary types (class_XXXX) into the API signatures and breaks compilation.
+    modImplementation("net.fabricmc:fabric-loader:$loaderVersion")
+    modImplementation("net.fabricmc.fabric-api:fabric-api:$fabricApiVersion")
 }
 
 tasks.processResources {
@@ -86,20 +81,29 @@ tasks.processResources {
     }
 }
 
+// MC 1.21.11 runs on Java 21 (its classes are Java 21 bytecode), so we target 21. Compiling with --release 21 on
+// JDK 25 is fine; runClient needs a Java 21 runtime, located via the toolchain below.
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(25)
+    options.release.set(21)
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
 }
 
-// MC 26.x ships deobfuscated, so the `jar` task IS the final published jar. The mod VERSION stays clean
-// (mod_version); only the classifier carries the loader and the Minecraft family label (jarMcLabel above), for clear
-// multi-version naming (-> builders-shulkers-<mod_version>-fabric-<jarMcLabel>.jar, e.g. ...-fabric-26.1.x.jar).
-tasks.jar {
+// MC 1.21.x is obfuscated, so loom remaps: remapJar (not jar) produces the final, runnable, published jar. The mod
+// VERSION stays clean (mod_version); only the classifier carries the loader and the Minecraft family label (jarMcLabel
+// above), for clear multi-version naming (-> builders-shulkers-<mod_version>-fabric-<jarMcLabel>.jar).
+tasks.named<org.gradle.api.tasks.bundling.AbstractArchiveTask>("remapJar") {
     archiveClassifier.set("fabric-$jarMcLabel")
+}
+
+// LICENSE is added to the dev jar; remapJar carries it through into the final jar.
+tasks.jar {
     from("LICENSE") {
         rename { "${it}_${rootProject.name}" }
     }

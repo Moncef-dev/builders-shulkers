@@ -23,7 +23,7 @@ public final class ShulkerContents {
 	// Whether this stack is a shulker box, detected by the vanilla tag (not a hardcoded class), so modded shulkers
 	// in the tag are recognized too. The single detection used everywhere the mod special-cases a shulker.
 	public static boolean isShulker(ItemStack stack) {
-		return !stack.isEmpty() && stack.typeHolder().is(ItemTags.SHULKER_BOXES);
+		return !stack.isEmpty() && stack.getItemHolder().is(ItemTags.SHULKER_BOXES);
 	}
 
 	// Reads the stack's CONTAINER component into a fresh SIZE-slot list (empty for unused slots).
@@ -41,7 +41,7 @@ public final class ShulkerContents {
 	// is then byte-for-byte the old behaviour (no vanilla change).
 	public static void write(ItemStack shulker, List<ItemStack> items) {
 		ItemContainerContents existing = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
-		int fullSize = Math.max(SIZE, (int) existing.allItemsCopyStream().count());
+		int fullSize = Math.max(SIZE, (int) existing.stream().count());
 		NonNullList<ItemStack> full = NonNullList.withSize(fullSize, ItemStack.EMPTY);
 		existing.copyInto(full);
 		for (int i = 0; i < SIZE; i++) {
