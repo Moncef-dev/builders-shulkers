@@ -1,7 +1,8 @@
-# Builder's Shulkers - Technical Documentation (v1.2.1)
+# Builder's Shulkers - Technical Documentation (v1.2.2)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.2.1.
+their scope, and known risks. Describes the state as shipped in v1.2.2. This is the 26.x branch
+(Minecraft 26.1.x and 26.2); the 1.21.x line lives on its own branch.
 
 ## Environment
 
@@ -124,13 +125,15 @@ client renderer can recognize the animating stack wherever it is drawn (GUI, han
   under the same id, making B render A's shulker as open. A random 64-bit id makes that collision
   astronomically improbable, and the worst case of a collision is a brief self-healing cosmetic glitch on one
   client (never a duplication). Zero is reserved as the render side channel's "no id" sentinel.
-- The first-person hand swap animation that would fire whenever the marker is added, removed, or
-  changed is suppressed entirely by `IgnoreAnimationIdSwapMixin` (see section 5). There is no vanilla
-  `.ignoreSwapAnimation()` flag here: because the marker lives in `custom_data`, which vanilla does NOT
-  ignore in its swap-equality check, the mixin is the only thing handling it.
+- The first-person hand swap animation that would fire whenever the held shulker changes in a cosmetic-only way - the
+  marker added/removed/changed, OR the box's container contents edited live while it is held - is suppressed by
+  `IgnoreAnimationIdSwapMixin` (see section 5). It extends vanilla's own `.ignoreSwapAnimation()` opt-out (which vanilla
+  applies to `minecraft:damage`): the marker lives in `custom_data` and `minecraft:container` is likewise unflagged,
+  neither of which vanilla ignores in its swap-equality check, so the mixin is the only thing handling them.
 - The animation state machine (progress, OPENING/OPENED/CLOSING) is purely client-side in
-  `ClientShulkerSession`. The marker is never stripped during a session (see section 7 for why); it is
-  cleared at the next login.
+  `ClientShulkerSession`. Progress is held back until the renderer has consumed the prior frame's value (a defer-tick,
+  scoped to the local animation), so a freshly opened lid does not jump ahead of its first rendered frame. The marker is
+  never stripped during a session (see section 7 for why); it is cleared at the next login.
 
 ## 4. Rendering (reuse of vanilla openness)
 
@@ -203,12 +206,15 @@ Client (`builders-shulkers.client.mixins.json`):
   any shulker with no side channel set), which wrongly rendered other players' held shulkers as open from the
   local player's view.
 - `IgnoreAnimationIdSwapMixin` -> `ItemInHandRenderer.shouldInstantlyReplaceVisibleItem` (HEAD,
-  cancellable): force an instant swap (no swing animation) when two consecutive held stacks differ
-  ONLY by our marker. It compares every component except `CUSTOM_DATA`, then compares `custom_data`
-  minus the `animation_id` key (`diffIsOnlyMarker`). This is needed because the marker lives in vanilla
-  `custom_data`, which vanilla does NOT ignore in its swap-equality check, so without the mixin the hand
-  would jolt every time the marker is added, removed, or changed. (There is no `.ignoreSwapAnimation()`
-  flag: that belonged to the old custom component type, dropped for join compatibility, see section 3.)
+  cancellable): force an instant swap (no swing animation) when two consecutive held stacks differ ONLY in
+  swap-cosmetic ways - our marker, or the container/bundle contents the feature edits while the box is held.
+  `diffIsOnlySwapCosmetic` compares every component except `CUSTOM_DATA`, `CONTAINER`, and `BUNDLE_CONTENTS`, then
+  compares `custom_data` minus the `animation_id` key. Comparing the keys by hand also catches the add/remove of those
+  components, which vanilla's `matchesIgnoringComponents` misses (it short-circuits on a component-map size mismatch
+  before consulting the per-type ignore predicate). This extends vanilla's own `.ignoreSwapAnimation()` opt-out, which
+  vanilla applies to `minecraft:damage` for the same reason (an item whose state changes during normal use should not
+  make the hand dip); vanilla never flags container/bundle contents only because it never edits a held container, and
+  we do.
 
 ## 6. Networking payloads
 
@@ -227,7 +233,7 @@ Client (`builders-shulkers.client.mixins.json`):
   `pocket_build`), sent on join and on every change. Custom gamerules are NOT synced to the client automatically, so
   the client caches them (`ClientGameRuleState`) to gate its own interception in step with the server (section 9).
 
-## 7. Known limitations and risks (v1.2.1)
+## 7. Known limitations and risks (v1.2.2)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -507,10 +513,10 @@ MOVES, so the two are set independently.
     the opaque content shows through the holes in every context, and nothing behind the shulker (water, clouds) is
     masked through them - the exact two failures a real translucent fade could not avoid (a fade is composited across
     the item/model pass boundary in a context-dependent order the engine fixes, so it was abandoned).
-  - DISAPPEAR: the lid is submitted opaque (a plain `entityCutout`, identical to a vanilla closed lid) ONLY while the
-    status is CLOSING, and not submitted at all while opening/open - a draw-call on/off keyed on the lifecycle status,
-    NEVER a translucent pass, so it cannot mask anything behind it either. It vanishes the instant opening starts and
-    reappears the instant closing starts (instant both ways, independent of the lift).
+  - DISAPPEAR: the lid is submitted opaque (a plain `entityCutout`, identical to a vanilla closed lid) while it is still
+    below the fully-open position, and not submitted once fully open - a draw-call on/off keyed on the openness, NEVER a
+    translucent pass, so it cannot mask anything behind it either. So the lid lifts WITH the open and vanishes only once
+    openness reaches 1, then reappears the instant a close starts moving it back down (symmetric with the close).
 - Instant close when the lift is off. With "Pocket-Build animations" (or "Inventory animations") off, the close no
   longer lingers at the resting state for the whole ~10-tick drain: the openness override snaps the position to 0 on
   the FIRST frame of the close (CLOSING status), while the effect still plays its own transition on top.
