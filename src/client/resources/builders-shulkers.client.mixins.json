@@ -23,6 +23,8 @@
 		"IgnoreAnimationIdSwapMixin",
 		"ItemEntityRenderStateMixin",
 		"ItemEntityRendererMixin",
+		"ItemStackRenderStateAnimationMixin",
+		"ItemModelResolverMixin",
 		"HeldItemAnimationMixin",
 		"FirstPersonHeldItemMixin",
 		"MouseHandlerScrollMixin",

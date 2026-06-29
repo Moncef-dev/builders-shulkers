@@ -269,6 +269,14 @@ Client (`builders-shulkers.client.mixins.json`):
   bucket or a spawn egg used from the box performed its action rather than only placing. Pocket-Build is now restricted
   to block items (section 8), which removes that behavior; the trade-off that block-only rule makes (it excludes the
   placeable non-blocks: buckets, item frames, paintings, boats, spawn eggs, ...) is documented there.
+- DISSOLVE lid is fullbright on the 1.21.x line (cosmetic, no fix planned). The DISSOLVE lid effect renders through the
+  vanilla `dragonExplosionAlpha` render type, whose shader outputs the raw texture WITHOUT the lightmap, so the
+  dissolving lid ignores world lighting: close to correct in daylight, noticeably glowing in the dark. 1.21.x has no
+  vanilla render type combining a tint-driven dissolve threshold with lighting (confirmed across all 38 core shaders),
+  and both lit alternatives lose more than they gain: a custom core shader is bypassed when a shader pack (Iris) is
+  active, and a translucent fade reintroduces the draw-order artifacts the cutout was chosen to avoid. Note the glow is a
+  no-shaders artifact: under a shader pack the same vanilla render type is lit by the pack. The 26.x line is unaffected
+  (vanilla provides a lit dissolve there). See the Lid effect subsection of section 8 for the full render rationale.
 
 ## 8. Pocket-Build mode (1.1.0)
 

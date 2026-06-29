@@ -23,6 +23,9 @@ val jarMcLabel = when (minecraftVersion) {
 // interop is deferred on this branch; it will be re-added with its own dependency pins when re-tested.)
 val (loaderVersion, fabricApiVersion, minecraftDep) = when (minecraftVersion) {
     "1.21.11" -> listOf("0.19.3", "0.141.4+1.21.11", "~1.21.11")
+    // 1.21.10 was short-lived: Fabric API stopped at 0.138.4+1.21.10 (the same 0.138.x builds also targeted
+    // 1.21.11), a strong hint the two patches share one API. Pinned to evaluate same-jar vs a separate build.
+    "1.21.10" -> listOf("0.19.3", "0.138.4+1.21.10", "~1.21.10")
     else -> error("Unconfigured Minecraft version: $minecraftVersion")
 }
 

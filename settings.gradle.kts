@@ -21,6 +21,7 @@ stonecutter {
         // version with the deobfuscated 26.x family (loom 1.16). First entry is the vcsVersion (the form committed /
         // reset to before a commit). The source is kept in its 1.21.11 form.
         version("1.21.11", "1.21.11")
+        version("1.21.10", "1.21.10")
     }
     create(rootProject)
 }
