@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 // the block you are about to place you have), like a normal hotbar item. Pocket-Build places BLOCKS only (the full-use
 // gamerule does not exist yet), so the durability bar and cooldown overlay have no meaning here: we draw ONLY the count,
 // not the rest of the vanilla decorations. The slot ICON is drawn earlier and separately, so it stays the shulker with
-// the content rendered inside. We redirect Hud.extractSlot's itemDecorations call (symmetrically to how
+// the content rendered inside. We redirect Gui.renderSlot's renderItemDecorations call (symmetrically to how
 // GuiSelectedItemNameMixin redirects the name popup); the held Pocket-Build shulker is identified by its animation_id
 // marker matching the active session, so another shulker in the hotbar is unaffected. The count is scaled down about
 // its RIGHT EDGE so it reads smaller while staying right-aligned in the corner.

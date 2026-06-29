@@ -14,10 +14,12 @@ jobs:
         uses: actions/checkout@v6
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
+      # The 1.21.x family compiles and runs on Java 21 (build.gradle.kts pins the toolchain to 21); this branch never
+      # builds 26.x. The 26.x family, on its own branch, keeps Java 25.
       - name: setup jdk
         uses: actions/setup-java@v5
         with:
-          java-version: '25'
+          java-version: '21'
           distribution: 'microsoft'
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew

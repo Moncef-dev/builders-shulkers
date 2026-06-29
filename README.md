@@ -35,8 +35,13 @@ Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
 
+### 1.2.2
+Builder's Shulkers now also runs on the Minecraft 1.21.x line: 1.21.9, 1.21.10, and 1.21.11, alongside 26.x. Plus a few visual fixes: the held shulker no longer jitters when its contents change, the lid no longer jumps slightly as it starts to open, and the "disappear" lid effect now waits for the lid to finish opening before disappearing, instead of vanishing instantly.
+
+** **
+
 ### 1.2.1
-Swapping the shulker you are holding while in Pocket-Build now leaves the mode cleanly, instead of carrying Pocket-Build over to the new shulker.
+**Improvement of ItemSwapper compatibility.** Swapping the shulker you are holding while in Pocket-Build now leaves the mode cleanly, instead of carrying Pocket-Build over to the new shulker.
 
 ** **
 

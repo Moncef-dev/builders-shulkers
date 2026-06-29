@@ -8,7 +8,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-// Vanilla keybinds: registered through Fabric's KeyMappingHelper so they appear in Options -> Controls under our own
+// Vanilla keybinds: registered through Fabric's KeyBindingHelper so they appear in Options -> Controls under our own
 // "Builder's Shulkers" category (a KeyMapping.Category registered by Identifier), rebindable / unbindable like any
 // vanilla bind. The two HELD bindings (Pocket-Build modifier, Peek) are polled via isDown() by PocketBuildClient at the
 // moment they matter; Open Settings and Toggle Pocket-Build are edge-triggered via consumeClick(). An unbound binding's

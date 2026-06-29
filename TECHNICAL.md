@@ -1,37 +1,61 @@
-# Builder's Shulkers - Technical Documentation (v1.2.1)
+# Builder's Shulkers - Technical Documentation (v1.2.2)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.2.1.
+their scope, and known risks. Describes the state as shipped in v1.2.2. This is the 1.21.x branch
+(Minecraft 1.21.9 to 1.21.11); the 26.x line lives on its own branch (see Environment).
 
 ## Environment
 
-- Loader: Fabric. Minecraft 26.1.2 and 26.2 (one source, both jars; see Multi-version build below). The 26.1.2 build,
-  shipped as `...-fabric-26.1.x.jar`, also runs on 26.1 and 26.1.1 (the whole 26.1.x family, via a widened dependency
-  range). JDK 25.
-- Mappings: official Mojang names (MC 26.1+ ships deobfuscated), not Yarn.
+- Loader: Fabric. Minecraft 1.21.9, 1.21.10, and 1.21.11 (one source, two jars; see Multi-version build below). The
+  1.21.10 build, shipped as `...-fabric-1.21.9-1.21.10.jar`, also runs on 1.21.9: the two patches are byte-identical for
+  every class the mod touches, so one jar covers both (via a widened dependency range). 1.21.11 is its own jar. Java 21.
+- Mappings: official Mojang names (Mojmap), as on the 26.x branch. But 1.21.x is the last OBFUSCATED Minecraft line, so
+  the build uses loom's obfuscation-aware `fabric-loom-remap` plugin variant: it compiles against Mojmap and remaps the
+  classes back to obfuscated names in `remapJar` (the published jar). Fabric Loader / Fabric API go through the `mod*`
+  configurations so loom remaps them too. (The 26.x line ships deobfuscated and needs none of this; the two toolchains
+  cannot share a build, which is why 1.21.x is a separate branch.)
 - Split source sets: `client` (rendering, input, screens) and `main` (registration,
   menu, networking). Client code is never called from common code.
 
 ### Multi-version build (Stonecutter)
 
-One source tree builds a jar per supported Minecraft version
-(`builders-shulkers-<mod_version>-fabric-26.1.x.jar` and `...-fabric-26.2.jar`), split with Stonecutter:
-`settings.gradle.kts` declares the versions, `build.gradle.kts` is the shared per-version script (the dependency
-pins are keyed on the active version), and `stonecutter.gradle.kts` is the version controller. `./gradlew build`
-builds every version; the mod version stays clean and only the jar classifier carries the Minecraft version.
+One source tree builds a jar per supported Minecraft version (`builders-shulkers-<mod_version>-fabric-1.21.9-1.21.10.jar`
+and `...-fabric-1.21.11.jar`), split with Stonecutter: `settings.gradle.kts` declares the versions, `build.gradle.kts`
+is the shared per-version script (the dependency pins, the dependency range, and the jar label are keyed on the active
+version), and `stonecutter.gradle.kts` is the version controller. `./gradlew build` builds every version; the mod
+version stays clean and only the jar classifier carries the Minecraft family.
 
-The source is kept in 26.2 form (the vcs version) and a handful of global Stonecutter replacements rewrite it back
-to 26.1.2 at configure time. They cover the only client-side API deltas between the two versions:
+The source is kept in 1.21.11 form (the vcs version). For the 1.21.10 build, global Stonecutter string replacements
+rewrite it back at configure time. They cover the client-side API deltas between the two:
 
-- `Gui` was split into `Gui` + a new `Hud` class (the HUD: hotbar, item-name popup). The HUD mixins
-  (`GuiSelectedItemNameMixin`, `GuiSelectedContentDecorationsMixin`) target `Hud` on 26.2 and `Gui` on 26.1.2, so
-  the methods this doc calls `Gui.tick` / `Gui.extractSlot` live on `Hud` in 26.2. `GuiItemAtlasMixin` (`drawToSlot`)
-  is unchanged and stays on `Gui`.
-- The removed `Minecraft.screen` field became the `Gui.screen()` getter, and `Minecraft.setScreen` became `gui.setScreen`.
-- `OrderedSubmitNodeCollector.submitModelPart` dropped two trailing boolean flags.
+- The `net.minecraft.resources.ResourceLocation` class was renamed `Identifier` in 1.21.11, swapped back to
+  `ResourceLocation` for 1.21.10 (both the dotted import/type form and the slash descriptor inside a mixin `@At`).
+- The render-type factory methods moved onto a new `RenderTypes` class in 1.21.11 (`RenderTypes` -> `RenderType`).
+- `org.jspecify.annotations.Nullable` (1.21.11) -> `org.jetbrains.annotations.Nullable` (1.21.10's Minecraft does not
+  pull jspecify transitively).
+- `ItemInHandLayer.submitArmWithItem` gained a held `ItemStack` parameter in 1.21.11; the handler signature drops it
+  for 1.21.10.
 
-Both versions share the same render paradigm (the `GuiGraphicsExtractor` + `Matrix3x2fStack` GUI path), so 26.x
-stays a single family behind one source rather than separate branches.
+One delta is structural rather than a token swap and is forked inline with `//?` Stonecutter directives instead: the
+game-rule API. 1.21.11 namespaces rules (`GameRuleBuilder` + `GameRuleEvents`, an `Identifier` key); 1.21.10 uses the
+older Fabric API (`GameRuleRegistry` + `GameRuleFactory`, a string name, the change callback baked into the factory).
+Callers stay version-agnostic: `ShulkerInventory` hands `ModGameRules.register` a broadcaster plus per-rule on-change
+handlers, and `ModGameRules` wires them the way the active version expects.
+
+The third-person held-shulker lid animation stays at parity across the `submitArmWithItem` difference without per-version
+render code: because the raw `ItemStack` reaches `submitArmWithItem` only on 1.21.11, the animation id is instead stashed
+onto the held item's render state when it is built (`ItemModelResolverMixin` on `updateForLiving`, identical on both
+versions) and read back at submit time through one uniform hook.
+
+1.21.9 needs no build of its own: every class the mod touches is byte-for-byte identical between 1.21.9 and 1.21.10
+(verified by a bytecode diff over all mixin targets and the called API), and the mod's fabric-api usage already exists in
+1.21.9's last Fabric API build, so the 1.21.10 jar runs unchanged on 1.21.9 (its dependency range is widened to
+`>=1.21.9 <1.21.11`). 1.21.8 and earlier are out of scope: the `SubmitNodeCollector` render system the lid path is built
+on arrived in 1.21.9 (absent on 1.21.8), a render era this branch does not target.
+
+1.21.11 is a separate build (its own jar, not a widened range) because the deltas above - the renamed class, the moved
+render-type factories, the changed `submitArmWithItem` signature, and the namespaced game-rule API - are real binary
+differences, not just metadata.
 
 ## Overview
 
@@ -124,13 +148,15 @@ client renderer can recognize the animating stack wherever it is drawn (GUI, han
   under the same id, making B render A's shulker as open. A random 64-bit id makes that collision
   astronomically improbable, and the worst case of a collision is a brief self-healing cosmetic glitch on one
   client (never a duplication). Zero is reserved as the render side channel's "no id" sentinel.
-- The first-person hand swap animation that would fire whenever the marker is added, removed, or
-  changed is suppressed entirely by `IgnoreAnimationIdSwapMixin` (see section 5). There is no vanilla
-  `.ignoreSwapAnimation()` flag here: because the marker lives in `custom_data`, which vanilla does NOT
-  ignore in its swap-equality check, the mixin is the only thing handling it.
+- The first-person hand swap animation that would fire whenever the held shulker changes in a cosmetic-only way - the
+  marker added/removed/changed, OR the box's container contents edited live while it is held - is suppressed by
+  `IgnoreAnimationIdSwapMixin` (see section 5). It extends vanilla's own `.ignoreSwapAnimation()` opt-out (which vanilla
+  applies to `minecraft:damage`): the marker lives in `custom_data` and `minecraft:container` is likewise unflagged,
+  neither of which vanilla ignores in its swap-equality check, so the mixin is the only thing handling them.
 - The animation state machine (progress, OPENING/OPENED/CLOSING) is purely client-side in
-  `ClientShulkerSession`. The marker is never stripped during a session (see section 7 for why); it is
-  cleared at the next login.
+  `ClientShulkerSession`. Progress is held back until the renderer has consumed the prior frame's value (a defer-tick,
+  scoped to the local animation), so a freshly opened lid does not jump ahead of its first rendered frame. The marker is
+  never stripped during a session (see section 7 for why); it is cleared at the next login.
 
 ## 4. Rendering (reuse of vanilla openness)
 
@@ -203,12 +229,15 @@ Client (`builders-shulkers.client.mixins.json`):
   any shulker with no side channel set), which wrongly rendered other players' held shulkers as open from the
   local player's view.
 - `IgnoreAnimationIdSwapMixin` -> `ItemInHandRenderer.shouldInstantlyReplaceVisibleItem` (HEAD,
-  cancellable): force an instant swap (no swing animation) when two consecutive held stacks differ
-  ONLY by our marker. It compares every component except `CUSTOM_DATA`, then compares `custom_data`
-  minus the `animation_id` key (`diffIsOnlyMarker`). This is needed because the marker lives in vanilla
-  `custom_data`, which vanilla does NOT ignore in its swap-equality check, so without the mixin the hand
-  would jolt every time the marker is added, removed, or changed. (There is no `.ignoreSwapAnimation()`
-  flag: that belonged to the old custom component type, dropped for join compatibility, see section 3.)
+  cancellable): force an instant swap (no swing animation) when two consecutive held stacks differ ONLY in
+  swap-cosmetic ways - our marker, or the container/bundle contents the feature edits while the box is held.
+  `diffIsOnlySwapCosmetic` compares every component except `CUSTOM_DATA`, `CONTAINER`, and `BUNDLE_CONTENTS`, then
+  compares `custom_data` minus the `animation_id` key. Comparing the keys by hand also catches the add/remove of those
+  components, which vanilla's `matchesIgnoringComponents` misses (it short-circuits on a component-map size mismatch
+  before consulting the per-type ignore predicate). This extends vanilla's own `.ignoreSwapAnimation()` opt-out, which
+  vanilla applies to `minecraft:damage` for the same reason (an item whose state changes during normal use should not
+  make the hand dip); vanilla never flags container/bundle contents only because it never edits a held container, and
+  we do.
 
 ## 6. Networking payloads
 
@@ -227,7 +256,7 @@ Client (`builders-shulkers.client.mixins.json`):
   `pocket_build`), sent on join and on every change. Custom gamerules are NOT synced to the client automatically, so
   the client caches them (`ClientGameRuleState`) to gate its own interception in step with the server (section 9).
 
-## 7. Known limitations and risks (v1.2.1)
+## 7. Known limitations and risks (v1.2.2)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -340,7 +369,7 @@ duplicated.
 - Peek overlay and item name (client HUD). While the Peek key is held (a rebindable keybind, default Left Control; after
   a short debounce, so the quick modifier + right-click toggle never flashes it), `PocketBuildOverlay` draws the 27
   contents as the actual vanilla shulker-box container
-  interface above the hotbar (through the mod's `GuiGraphicsExtractor`), with the selected slot under the vanilla
+  interface above the hotbar (through vanilla `GuiGraphics`), with the selected slot under the vanilla
   container hover highlight. Each item is drawn with vanilla's own `itemDecorations` (count, durability bar, cooldown
   overlay), so every slot subtlety appears exactly as in any container, instead of being redrawn by hand (1.1.1).
   `GuiSelectedItemNameMixin` redirects the held-stack read in `Gui.tick` to the selected content, so the vanilla hotbar
@@ -458,7 +487,7 @@ box's real centre and scaled: 0.5 of the box, 0.4 in third person, with a small 
 sprite otherwise sits a touch low and the wider ones, e.g. a sword or trident, clip the box edges). `NO_TRANSFORM`
 itself still applies a `translate(-0.5)` inside `ItemTransform.apply`, compensated in the centring maths.
 - Concession - slot lighting. In the GUI the lighting entry (3D vs flat) is chosen ONCE per item render state, from the
-  FIRST layer - the box, a 3D block (`GuiItemAtlas` reads `usesBlockLight`) - so a flat sprite composed into it inherits
+  FIRST layer - the box, a 3D block (the GUI atlas pass reads `usesBlockLight`) - so a flat sprite composed into it inherits
   the box's 3D diffuse and looks a touch DIMMER than its normal inventory icon. Its own flat lighting would need a
   separate render state, but a separate GUI item has its own depth and could not be HALF inside the box (in front of
   one wall and behind another): depth and lighting are coupled per render state in the GUI atlas. The
@@ -563,14 +592,14 @@ MOVES, so the two are set independently.
 
 In Pocket-Build the held shulker's hotbar slot shows the COUNT of the SELECTED CONTENT (how many of the block you are
 about to place you have), like a normal hotbar item, instead of the shulker's own count. `GuiSelectedContentDecorationsMixin`
-redirects the `GuiGraphicsExtractor.itemDecorations` call in `Gui.extractSlot` (symmetrically to how
+redirects the `GuiGraphics.renderItemDecorations` call in `Gui.renderSlot` (symmetrically to how
 `GuiSelectedItemNameMixin` redirects the name popup). The held Pocket-Build shulker is identified by its `animation_id`
 marker matching the active session, so another shulker in the hotbar is unaffected. The slot ICON is drawn earlier and
 separately, so it is left untouched (it stays the shulker with the content rendered inside).
 
 Only the count is drawn, NOT the full decorations: Pocket-Build places BLOCKS only (the full-use gamerule does not exist
 yet), so the durability bar and cooldown overlay have no meaning here. The count is drawn right-aligned at the vanilla
-position and scaled to 0.8 about its RIGHT EDGE (via the `GuiGraphicsExtractor.pose()` `Matrix3x2fStack`), so it reads a
+position and scaled to 0.8 about its RIGHT EDGE (via `GuiGraphics.pose()`, a `Matrix3x2fStack`), so it reads a
 touch smaller while staying right-aligned: scaling about the centre would push a 1-digit count further right than a
 2-digit one. Shown only when the count is > 1, like vanilla.
 
@@ -630,16 +659,17 @@ server gamerules, section 9); nothing is sent to the server and a 1.2.0 client n
   Pocket-Build lid animations; the inventory and Pocket-Build resting lid state (Open/Closed); the Pocket-Build lid
   effect (None/Dissolve/Disappear, an `OptionInstance` enum cycle); Pocket-Build in-box item rendering; open/close
   sounds; "Multiplayer animations" (the viewer-side gate on other players' held shulkers - animation AND sound,
-  section 4); show item count; and the item-count scale (a custom `AbstractSliderButton`). Cross-version: the boolean
-  toggles use `createBoolean`'s 2-/3-arg overloads, and the enum / Open-Closed options use the multi-arg constructor
-  with a no-op listener that target-types to either 26.1.2's `Consumer` or 26.2's `ValueUpdateListener`, so one source
-  compiles on both.
+  section 4); show item count; and the item-count scale (a custom `AbstractSliderButton`). The boolean
+  toggles use `createBoolean`'s 2-/3-arg overloads, and the enum / Open-Closed options use the multi-arg `OptionInstance`
+  constructor with a no-op change listener (every value is read when the screen closes, so no live callback is needed).
+  The option API is uniform across 1.21.10 and 1.21.11, so the config needs no version fork (the one structural fork on
+  this branch is the game-rule API, section 9).
 - Where the options are read: the lid animation/state/effect options drive `ShulkerBoxOpennessMixin` and
   `ShulkerBoxLidFadeMixin` (the Lid effect subsection of section 8); "Multiplayer animations" gates the remote
   animation start and the mirrored sound in `ShulkerInventoryClient` (section 4); the rest gate the in-box content
   render, the open/close sounds (`ClientShulkerSession`), and the hotbar count draw + scale
   (`GuiSelectedContentDecorationsMixin`).
-- Keybinds (`BuildersShulkersKeybinds`, registered through Fabric's `KeyMappingHelper` under a "Builder's Shulkers"
+- Keybinds (`BuildersShulkersKeybinds`, registered through Fabric's `KeyBindingHelper` under a "Builder's Shulkers"
   `KeyMapping.Category`): Open Settings (default B), the Pocket-Build modifier (default Left Control), Toggle
   Pocket-Build (UNBOUND by default), and Peek (default Left Control). The two HELD bindings (modifier, peek) are polled
   via `KeyMapping.isDown()` by `PocketBuildClient`, so an unbound one is a clean per-client off switch (false isDown

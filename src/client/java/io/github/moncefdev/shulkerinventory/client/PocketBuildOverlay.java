@@ -12,8 +12,8 @@ import net.minecraft.world.item.ItemStack;
 // Peek overlay: while in Pocket-Build mode AND Ctrl is held, draw the held shulker's contents as the actual vanilla
 // shulker-box container interface (same texture/slots as opening the box), cropped to the box itself (title bar + the
 // 3 content rows + a clean bottom border, NOT the player inventory which is redundant on the HUD). The selected slot
-// uses the vanilla container HOVER highlight (the white wash you get pointing at a slot). Rendered through the 26.1.2
-// GuiGraphicsExtractor. Ctrl is a pure visual peek; the scroll/selection works with or without it.
+// uses the vanilla container HOVER highlight (the white wash you get pointing at a slot). Rendered through vanilla
+// GuiGraphics. Ctrl is a pure visual peek; the scroll/selection works with or without it.
 public final class PocketBuildOverlay {
 	private PocketBuildOverlay() {}
 

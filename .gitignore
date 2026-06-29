@@ -28,6 +28,10 @@ bin/
 
 *.DS_Store
 
+# stonecutter (per-version project nodes are generated from settings.gradle.kts; nothing under here is source)
+
+versions/
+
 # fabric
 
 run/

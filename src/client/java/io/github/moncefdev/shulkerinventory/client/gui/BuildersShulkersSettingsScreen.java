@@ -16,10 +16,9 @@ import java.util.Locale;
 // The mod's client settings screen, built on the vanilla OptionsSubScreen so it looks and behaves exactly like the
 // vanilla Video/Accessibility screens (scrollable OptionsList + a Done button). Opened by the settings keybind. Each
 // option carries a descriptive tooltip, and the values drive the matching ClientConfig fields (harvested on close).
-// Cross-version notes: the toggles use createBoolean's 2-/3-arg overloads; the Open/Closed and the lid-effect (enum
-// cycle) options use the multi-arg constructor with a no-op listener that target-types to either 26.1.2's Consumer or
-// 26.2's ValueUpdateListener; the count-size control is a plain AbstractSliderButton (its OptionInstance equivalent's
-// callback differs between versions).
+// The toggles use createBoolean's 2-/3-arg overloads; the Open/Closed and the lid-effect (enum cycle) options use the
+// multi-arg OptionInstance constructor with a no-op change listener (every value is read on close, so no live callback
+// is needed); the count-size control is a plain AbstractSliderButton.
 public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 	private final OptionInstance<Boolean> inventoryAnimation;
 	private final OptionInstance<Boolean> pocketBuildAnimation;
@@ -76,7 +75,7 @@ public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 		super.onClose();
 	}
 
-	// An ON/OFF toggle with a descriptive tooltip (key + ".tooltip"). The 3-arg createBoolean is identical on 26.1.2/26.2.
+	// An ON/OFF toggle with a descriptive tooltip (key + ".tooltip").
 	private static OptionInstance<Boolean> toggle(String key, boolean initial) {
 		return OptionInstance.createBoolean(key,
 				OptionInstance.cachedConstantTooltip(Component.translatable(key + ".tooltip")),
@@ -84,10 +83,9 @@ public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 	}
 
 	// The Pocket-Build lid effect, a 3-value cycle (None / Dissolve / Disappear). The Enum ValueSet needs a Codec, built
-	// trivially from the enum name. The constructor's last parameter (the change callback) differs between 26.1.2
-	// (Consumer) and 26.2 (ValueUpdateListener), but the no-op lambda target-types to either, like the boolean options;
-	// the value is harvested on close. The CaptionBasedToString returns only the value label (the framework prepends the
-	// caption), keyed as "<key>.none" / ".dissolve" / ".disappear".
+	// trivially from the enum name. The constructor's last parameter is a no-op change listener (the value is harvested on
+	// close, so no live callback is needed). The CaptionBasedToString returns only the value label (the framework prepends
+	// the caption), keyed as "<key>.none" / ".dissolve" / ".disappear".
 	private static final Codec<ClientConfig.LidEffect> LID_EFFECT_CODEC =
 			Codec.STRING.xmap(ClientConfig.LidEffect::valueOf, ClientConfig.LidEffect::name);
 	private static final OptionInstance.Enum<ClientConfig.LidEffect> LID_EFFECT_VALUES =
@@ -103,9 +101,8 @@ public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 	}
 
 	// A boolean option whose value reads "Open"/"Closed" instead of "ON"/"OFF", with a tooltip. The CaptionBasedToString
-	// returns only the value (the framework prepends the caption). The 5-arg createBoolean's callback parameter differs
-	// between 26.1.2 (Consumer) and 26.2 (ValueUpdateListener), but the no-op lambda target-types to either, so the same
-	// source compiles on both; the value is harvested on close, so no live callback is needed.
+	// returns only the value (the framework prepends the caption). The 5-arg createBoolean takes a no-op change listener;
+	// the value is harvested on close, so no live callback is needed.
 	private static OptionInstance<Boolean> openClosedOption(String key, boolean initial) {
 		return OptionInstance.createBoolean(key,
 				OptionInstance.cachedConstantTooltip(Component.translatable(key + ".tooltip")),
@@ -115,9 +112,9 @@ public class BuildersShulkersSettingsScreen extends OptionsSubScreen {
 				newValue -> {});
 	}
 
-	// Plain vanilla slider for the selected-content count scale, 50%..100% (the OptionInstance slider constructor's
-	// callback parameter differs between 26.1.2 and 26.2, so a direct AbstractSliderButton is used). The OptionsList
-	// arranges and resizes it; the normalized 0..1 value maps onto the 0.5..1.0 scale.
+	// Plain vanilla slider for the selected-content count scale, 50%..100% (a direct AbstractSliderButton; the value is
+	// harvested on close like the other options). The OptionsList arranges and resizes it; the normalized 0..1 value maps
+	// onto the 0.5..1.0 scale.
 	private static final class ItemCountSizeSlider extends AbstractSliderButton {
 		private static final double MIN = 0.5;
 		private static final double MAX = 1.0;
