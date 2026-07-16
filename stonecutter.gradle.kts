@@ -2,7 +2,7 @@ plugins {
     id("dev.kikugie.stonecutter")
 }
 
-stonecutter active "26.2" /* [SC] DO NOT EDIT */
+stonecutter active "26.2-fabric" /* [SC] DO NOT EDIT */
 
 // The source is kept in its 26.2 form (the newest target). For older targets, these replacements transform it
 // back down. 26.2 split net.minecraft.client.gui.Gui into Gui + a new Hud class (HUD rendering moved to Hud),

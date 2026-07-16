@@ -14,14 +14,20 @@ plugins {
 
 stonecutter {
     kotlinController = true
-    centralScript = "build.gradle.kts"
-    shared {
-        // First entry is the vcsVersion (the form committed / reset to before a commit). The source is kept in
-        // its 26.2 form, so 26.2 is first.
-        version("26.2", "26.2")
-        version("26.1.2", "26.1.2")
+    create(rootProject) {
+        // One build node per (Minecraft version, loader), each applying its loader's own buildscript
+        // (build.<loader>.gradle.kts). The node id "<mc>-<loader>" is MAPPED to its logical Minecraft version:
+        // without the mapping, the "-<loader>" suffix would parse as a semver pre-release and skew version
+        // comparisons in the controller's replacements.
+        fun target(mc: String, vararg loaders: String) {
+            for (loader in loaders) version("$mc-$loader", mc).buildscript("build.$loader.gradle.kts")
+        }
+        target("26.2", "fabric")
+        target("26.1.2", "fabric")
+        // The source is kept in its 26.2 form (the newest target); this is the node the tree is reset to before
+        // a commit.
+        vcsVersion = "26.2-fabric"
     }
-    create(rootProject)
 }
 
 rootProject.name = "builders-shulkers"
