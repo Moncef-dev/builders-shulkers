@@ -41,6 +41,11 @@ loom {
         }
     }
 
+    // Fabric-specific code (entrypoints, Fabric API wiring, Litematica interop) lives under src/fabric, split into
+    // the same main/client environments as the shared source.
+    sourceSets["main"].java.srcDir("src/fabric/main/java")
+    sourceSets["client"].java.srcDir("src/fabric/client/java")
+
     // Dev convenience: named client runs with fixed usernames for local multiplayer testing against runServer.
     runs {
         create("clientAlice") {

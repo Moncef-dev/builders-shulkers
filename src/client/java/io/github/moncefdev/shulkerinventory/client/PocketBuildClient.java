@@ -4,14 +4,7 @@ import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildModePayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.minecraft.resources.Identifier;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.fabricmc.fabric.api.event.player.UseEntityCallback;
-import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import io.github.moncefdev.shulkerinventory.client.platform.ClientPlatform;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.InteractionHand;
@@ -58,84 +51,71 @@ public final class PocketBuildClient {
 		return PocketBuildMode.isActive() && peekHeldTicks >= PEEK_DELAY_TICKS;
 	}
 
-	public static void register() {
-		// A right-click routes through one of three use events depending on the target: a block fires UseBlockCallback,
-		// air fires UseItemCallback, an entity (e.g. an item frame) fires UseEntityCallback. All three feed the SAME
-		// toggle handler so Ctrl + right-click always enters/exits Pocket-Build, never the vanilla action; the target
-		// itself is unused here (a plain right-click is PASSed to vanilla, which carries its own target).
-		UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> handleUse(player, world, hand));
-		UseItemCallback.EVENT.register((player, world, hand) -> handleUse(player, world, hand));
-		UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> handleUse(player, world, hand));
+	// Block the off-hand swap key (F) while the mode is active, before vanilla's keybind handling reads it.
+	// Wired by the loader entrypoint to the START of every client tick.
+	public static void startClientTick(Minecraft mc) {
+		if (!PocketBuildMode.isActive()) {
+			return;
+		}
+		while (mc.options.keySwapOffhand.consumeClick()) {
+			// discard
+		}
+	}
 
-		// Peek overlay: draw the shulker contents grid right after the vanilla hotbar (shown while Ctrl is held).
-		HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR,
-				Identifier.fromNamespaceAndPath("builders-shulkers", "pocket_build_overlay"),
-				PocketBuildOverlay::render);
-
-		// Block the off-hand swap key (F) while the mode is active, before vanilla's keybind handling reads it.
-		ClientTickEvents.START_CLIENT_TICK.register(mc -> {
-			if (!PocketBuildMode.isActive()) {
-				return;
-			}
-			while (mc.options.keySwapOffhand.consumeClick()) {
-				// discard
-			}
-		});
-
-		// Re-arm the toggle, then apply the exit conditions while the mode is active.
-		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
-			if (!mc.options.keyUse.isDown()) {
-				rightClickReleased = true;
-			}
-			if (!PocketBuildMode.isActive()) {
-				return;
-			}
-			if (mc.player == null) {
-				exitMode();
-				return;
-			}
-			// Death ends the mode. Without keepInventory the shulker drops and the !stillShulker check below catches it;
-			// WITH keepInventory it stays in hand and neither the death nor the respawn screen is a container, so nothing
-			// else would close the mode.
-			if (mc.player.isDeadOrDying()) {
-				exitMode();
-				return;
-			}
-			ItemStack held = mc.player.getMainHandItem();
-			boolean stillShulker = ShulkerContents.isShulker(held);
-			// Only opening a container UI (the player's own inventory, a chest, any container) ends the mode, like
-			// the chest GUI flow. The pause menu, options, chat, etc. leave the mode running.
-			if (mc.gui.screen() instanceof AbstractContainerScreen || !stillShulker
-					|| mc.player.getInventory().getSelectedSlot() != PocketBuildMode.sourceHotbarSlot()) {
-				exitMode();
-				return;
-			}
-			// Held-box identity: an in-place item swap (Item Swapper's R menu, a creative set-slot, any mod that
-			// replaces the held stack WITHOUT moving the selected slot) puts a different shulker in the same slot, which
-			// the checks above miss. The mode box carries the server-set marker; a swapped-in box does not match, so we
-			// exit - the swap then cleanly closes box 1 and leaves box 2 a normal held shulker. Enforce a mismatch only
-			// once the marker has matched at least once (it syncs back a tick or two after entry); a bounded grace exits
-			// anyway if it never confirms (e.g. a swap during that initial window), so the mode can never linger.
-			ticksInMode++;
-			Long heldMarker = ShulkerAnimationMarker.get(held);
-			if (heldMarker != null && heldMarker == PocketBuildMode.animationId()) {
-				heldMarkerConfirmed = true;
-			} else if (heldMarkerConfirmed || ticksInMode > MARKER_SYNC_GRACE_TICKS) {
-				exitMode();
-				return;
-			}
-			// Keep the content drawn inside the box in sync with the scroll selection; it stays frozen on the
-			// animation through the close (where the mode is already inactive).
-			ClientShulkerSession.setPocketBuildContent(PocketBuildMode.animationId(), PocketBuildMode.selectedStack(held));
-			// Debounce the peek: count how long the Peek key has been held continuously. A quick modifier + right-click
-			// toggle holds it only briefly, so it never reaches the threshold and the contents overlay never flashes
-			// before the mode closes; a deliberate peek (sustained hold) does show it.
-			if (BuildersShulkersKeybinds.isPeekDown()) {
-				peekHeldTicks++;
-			} else {
-				peekHeldTicks = 0;
-			}
-		});
+	// Re-arm the toggle, then apply the exit conditions while the mode is active.
+	// Wired by the loader entrypoint to the END of every client tick.
+	public static void endClientTick(Minecraft mc) {
+		if (!mc.options.keyUse.isDown()) {
+			rightClickReleased = true;
+		}
+		if (!PocketBuildMode.isActive()) {
+			return;
+		}
+		if (mc.player == null) {
+			exitMode();
+			return;
+		}
+		// Death ends the mode. Without keepInventory the shulker drops and the !stillShulker check below catches it;
+		// WITH keepInventory it stays in hand and neither the death nor the respawn screen is a container, so nothing
+		// else would close the mode.
+		if (mc.player.isDeadOrDying()) {
+			exitMode();
+			return;
+		}
+		ItemStack held = mc.player.getMainHandItem();
+		boolean stillShulker = ShulkerContents.isShulker(held);
+		// Only opening a container UI (the player's own inventory, a chest, any container) ends the mode, like
+		// the chest GUI flow. The pause menu, options, chat, etc. leave the mode running.
+		if (mc.gui.screen() instanceof AbstractContainerScreen || !stillShulker
+				|| mc.player.getInventory().getSelectedSlot() != PocketBuildMode.sourceHotbarSlot()) {
+			exitMode();
+			return;
+		}
+		// Held-box identity: an in-place item swap (Item Swapper's R menu, a creative set-slot, any mod that
+		// replaces the held stack WITHOUT moving the selected slot) puts a different shulker in the same slot, which
+		// the checks above miss. The mode box carries the server-set marker; a swapped-in box does not match, so we
+		// exit - the swap then cleanly closes box 1 and leaves box 2 a normal held shulker. Enforce a mismatch only
+		// once the marker has matched at least once (it syncs back a tick or two after entry); a bounded grace exits
+		// anyway if it never confirms (e.g. a swap during that initial window), so the mode can never linger.
+		ticksInMode++;
+		Long heldMarker = ShulkerAnimationMarker.get(held);
+		if (heldMarker != null && heldMarker == PocketBuildMode.animationId()) {
+			heldMarkerConfirmed = true;
+		} else if (heldMarkerConfirmed || ticksInMode > MARKER_SYNC_GRACE_TICKS) {
+			exitMode();
+			return;
+		}
+		// Keep the content drawn inside the box in sync with the scroll selection; it stays frozen on the
+		// animation through the close (where the mode is already inactive).
+		ClientShulkerSession.setPocketBuildContent(PocketBuildMode.animationId(), PocketBuildMode.selectedStack(held));
+		// Debounce the peek: count how long the Peek key has been held continuously. A quick modifier + right-click
+		// toggle holds it only briefly, so it never reaches the threshold and the contents overlay never flashes
+		// before the mode closes; a deliberate peek (sustained hold) does show it.
+		if (BuildersShulkersKeybinds.isPeekDown()) {
+			peekHeldTicks++;
+		} else {
+			peekHeldTicks = 0;
+		}
 	}
 
 	// The shared Pocket-Build toggle for every right-click (block, air, or entity). Ctrl + right-click enters the mode
@@ -144,7 +124,7 @@ public final class PocketBuildClient {
 	// content-swap mixins briefly put the SELECTED CONTENT in hand, so the whole vanilla flow (place / interact / sound /
 	// adventure / orientation, an entity action like placing into an item frame too) applies to the content, never the
 	// shulker. Entry needs a server that runs the mod, so the placement is validated server-authoritatively, never duped.
-	private static InteractionResult handleUse(Player player, Level world, InteractionHand hand) {
+	public static InteractionResult handleUse(Player player, Level world, InteractionHand hand) {
 		Minecraft mc = Minecraft.getInstance();
 		if (!world.isClientSide() || hand != InteractionHand.MAIN_HAND || player != mc.player) {
 			return InteractionResult.PASS;
@@ -172,7 +152,7 @@ public final class PocketBuildClient {
 		// right-click then pressing the modifier does not enter mid-build.
 		ItemStack held = player.getMainHandItem();
 		if (modifier && pressEdge && ShulkerContents.isShulker(held)
-				&& mc.gui.screen() == null && ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)
+				&& mc.gui.screen() == null && ClientPlatform.network().canSend(PocketBuildModePayload.TYPE)
 				&& ClientGameRuleState.pocketBuild()) {
 			enterMode(player, held);
 			return InteractionResult.FAIL;
@@ -198,7 +178,7 @@ public final class PocketBuildClient {
 		PocketBuildMode.enter(slot, held, id);
 		// Hand the selected content to the animation so the render draws it inside the box from the start of the open.
 		ClientShulkerSession.setPocketBuildContent(id, PocketBuildMode.selectedStack(held));
-		ClientPlayNetworking.send(new PocketBuildModePayload(true, slot, id, PocketBuildMode.selectedContentSlot()));
+		ClientPlatform.network().send(new PocketBuildModePayload(true, slot, id, PocketBuildMode.selectedContentSlot()));
 		ClientShulkerSession.playOwnSound(true);
 	}
 
@@ -208,8 +188,8 @@ public final class PocketBuildClient {
 		PocketBuildMode.exit();
 		heldMarkerConfirmed = false;
 		ticksInMode = 0;
-		if (ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE)) {
-			ClientPlayNetworking.send(new PocketBuildModePayload(false, slot, id, -1));
+		if (ClientPlatform.network().canSend(PocketBuildModePayload.TYPE)) {
+			ClientPlatform.network().send(new PocketBuildModePayload(false, slot, id, -1));
 		}
 		ClientShulkerSession.startClosing(id);
 		ClientShulkerSession.playOwnSound(false);
@@ -229,7 +209,7 @@ public final class PocketBuildClient {
 		}
 		ItemStack held = mc.player.getMainHandItem();
 		if (ShulkerContents.isShulker(held) && mc.gui.screen() == null
-				&& ClientPlayNetworking.canSend(PocketBuildModePayload.TYPE) && ClientGameRuleState.pocketBuild()) {
+				&& ClientPlatform.network().canSend(PocketBuildModePayload.TYPE) && ClientGameRuleState.pocketBuild()) {
 			enterMode(mc.player, held);
 		}
 	}
@@ -241,8 +221,8 @@ public final class PocketBuildClient {
 		if (!PocketBuildMode.selectMatchingSlot(heldShulker, pick)) {
 			return false;
 		}
-		if (ClientPlayNetworking.canSend(PocketBuildSelectPayload.TYPE)) {
-			ClientPlayNetworking.send(new PocketBuildSelectPayload(PocketBuildMode.selectedContentSlot()));
+		if (ClientPlatform.network().canSend(PocketBuildSelectPayload.TYPE)) {
+			ClientPlatform.network().send(new PocketBuildSelectPayload(PocketBuildMode.selectedContentSlot()));
 		}
 		return true;
 	}

@@ -5,8 +5,7 @@ import io.github.moncefdev.shulkerinventory.ShulkerInventory;
 import io.github.moncefdev.shulkerinventory.network.OpenPlayerInventoryPayload;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildRemoteContentPayload;
 import io.github.moncefdev.shulkerinventory.network.RemoteShulkerAnimationPayload;
-import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import io.github.moncefdev.shulkerinventory.platform.Platform;
 import net.minecraft.network.HashedStack;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
@@ -49,13 +48,13 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	// other tracking players, so this is a no-op and solo behavior is unchanged.
 	public static void broadcastAnimation(ServerPlayer holder, long animationId, boolean opening, boolean playSound) {
 		RemoteShulkerAnimationPayload payload = new RemoteShulkerAnimationPayload(animationId, opening, holder.getId(), playSound);
-		for (ServerPlayer viewer : PlayerLookup.tracking(holder)) {
+		for (ServerPlayer viewer : Platform.network().tracking(holder)) {
 			// Only send to viewers that run the mod and have registered our channel. This skips vanilla clients
 			// (compatibility: never push our payload to a client that cannot handle it) and any viewer not yet
 			// ready to receive it (a just-joined player mid-handshake), which would otherwise error the send and
 			// disconnect that viewer.
-			if (viewer != holder && ServerPlayNetworking.canSend(viewer, RemoteShulkerAnimationPayload.TYPE)) {
-				ServerPlayNetworking.send(viewer, payload);
+			if (viewer != holder && Platform.network().canSend(viewer, RemoteShulkerAnimationPayload.TYPE)) {
+				Platform.network().send(viewer, payload);
 			}
 		}
 	}
@@ -67,9 +66,9 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	// (vanilla clients, or one still mid-handshake), exactly like broadcastAnimation.
 	public static void broadcastPocketBuildContent(ServerPlayer holder, long animationId, ItemStack content) {
 		PocketBuildRemoteContentPayload payload = new PocketBuildRemoteContentPayload(animationId, holder.getId(), content);
-		for (ServerPlayer viewer : PlayerLookup.tracking(holder)) {
-			if (viewer != holder && ServerPlayNetworking.canSend(viewer, PocketBuildRemoteContentPayload.TYPE)) {
-				ServerPlayNetworking.send(viewer, payload);
+		for (ServerPlayer viewer : Platform.network().tracking(holder)) {
+			if (viewer != holder && Platform.network().canSend(viewer, PocketBuildRemoteContentPayload.TYPE)) {
+				Platform.network().send(viewer, payload);
 			}
 		}
 	}
@@ -104,7 +103,7 @@ public class InventoryShulkerBoxMenu extends ShulkerBoxMenu {
 	// cursor) plus this broadcast, so the client never keeps a stale cursor item.
 	private void finishReturnToInventory(ServerPlayer serverPlayer) {
 		serverPlayer.inventoryMenu.broadcastFullState();
-		ServerPlayNetworking.send(serverPlayer, OpenPlayerInventoryPayload.INSTANCE);
+		Platform.network().send(serverPlayer, OpenPlayerInventoryPayload.INSTANCE);
 		dropCreativeCursorShadow(serverPlayer);
 	}
 

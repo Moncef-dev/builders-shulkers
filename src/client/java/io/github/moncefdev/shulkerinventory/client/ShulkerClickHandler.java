@@ -2,8 +2,8 @@ package io.github.moncefdev.shulkerinventory.client;
 
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import io.github.moncefdev.shulkerinventory.client.mixin.CreativeSlotWrapperAccessor;
+import io.github.moncefdev.shulkerinventory.client.platform.ClientPlatform;
 import io.github.moncefdev.shulkerinventory.network.OpenShulkerPayload;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
@@ -33,7 +33,7 @@ public final class ShulkerClickHandler {
 		if (!ShulkerContents.isShulker(stack)) return false;
 		// Only intercept if the server runs the mod and can receive our open request. On a server without the
 		// mod, fall through to vanilla so the shulker keeps its normal right-click behavior (no dead clicks).
-		if (!ClientPlayNetworking.canSend(OpenShulkerPayload.TYPE)) return false;
+		if (!ClientPlatform.network().canSend(OpenShulkerPayload.TYPE)) return false;
 		// Respect the server-synced feature gate: if inventory access is disabled, leave the right-click to vanilla.
 		if (!ClientGameRuleState.inventoryAccess()) return false;
 
@@ -41,7 +41,7 @@ public final class ShulkerClickHandler {
 		// the closing lid is instead of snapping shut. Shared with Pocket-Build via ClientShulkerSession
 		// .beginHeldOpening; armScreen=true also arms this GUI flow's pending-screen cleanup.
 		long animationId = ClientShulkerSession.beginHeldOpening(stack, true);
-		ClientPlayNetworking.send(new OpenShulkerPayload(containerSlot, animationId));
+		ClientPlatform.network().send(new OpenShulkerPayload(containerSlot, animationId));
 		return true;
 	}
 
