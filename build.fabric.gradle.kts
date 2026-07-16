@@ -41,10 +41,11 @@ loom {
         }
     }
 
-    // Fabric-specific code (entrypoints, Fabric API wiring, Litematica interop) lives under src/fabric, split into
-    // the same main/client environments as the shared source.
-    sourceSets["main"].java.srcDir("src/fabric/main/java")
-    sourceSets["client"].java.srcDir("src/fabric/client/java")
+    // Loader-specific code lives in loader subpackages of the SHARED source tree (Stonecutter only versions the
+    // conventional source-set directories, so separate per-loader source dirs would not be versioned); each
+    // loader's buildscript excludes the other loader's packages at the source-set level.
+    sourceSets["main"].java.exclude("**/shulkerinventory/neoforge/**")
+    sourceSets["client"].java.exclude("**/shulkerinventory/neoforge/**")
 
     // Dev convenience: named client runs with fixed usernames for local multiplayer testing against runServer.
     runs {
@@ -89,6 +90,9 @@ tasks.processResources {
     filesMatching("fabric.mod.json") {
         expand(props)
     }
+    // NeoForge-only metadata lives in the shared resources (Stonecutter versions only conventional resource
+    // dirs); it must never ship in the fabric jar.
+    exclude("META-INF/neoforge.mods.toml", "META-INF/accesstransformer.cfg")
 }
 
 tasks.withType<JavaCompile>().configureEach {

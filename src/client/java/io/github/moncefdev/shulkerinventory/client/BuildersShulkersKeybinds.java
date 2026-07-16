@@ -19,6 +19,7 @@ import java.util.List;
 public final class BuildersShulkersKeybinds {
 	private BuildersShulkersKeybinds() {}
 
+	private static KeyMapping.Category category;
 	private static KeyMapping openSettings;
 	private static KeyMapping pocketBuildModifier;
 	private static KeyMapping pocketBuildToggle;
@@ -28,7 +29,7 @@ public final class BuildersShulkersKeybinds {
 
 	// Builds the key mappings (without registering them) and returns them for the loader entrypoint to register.
 	public static List<KeyMapping> createKeyMappings() {
-		KeyMapping.Category category = KeyMapping.Category.register(
+		category = KeyMapping.Category.register(
 				Identifier.fromNamespaceAndPath("builders-shulkers", "main"));
 		// Open the settings screen (default B, in-game only).
 		openSettings = new KeyMapping(
@@ -43,6 +44,12 @@ public final class BuildersShulkersKeybinds {
 		peek = new KeyMapping(
 				"key.builders-shulkers.peek", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, category);
 		return List.of(openSettings, pocketBuildModifier, pocketBuildToggle, peek);
+	}
+
+	// The controls-screen category the mappings above belong to (built by createKeyMappings). Loaders that sort
+	// categories explicitly (NeoForge's RegisterKeyMappingsEvent) register it through this.
+	public static KeyMapping.Category category() {
+		return category;
 	}
 
 	// Handles the edge-triggered bindings. Wired by the loader entrypoint to the END of every client tick.

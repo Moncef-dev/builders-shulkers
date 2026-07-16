@@ -28,24 +28,22 @@ base {
     archivesName.set("builders-shulkers")
 }
 
-// The fabric buildscript keeps loom's client/common source-set split, which enforces at compile time that common
-// code never references client code. This buildscript folds both into the single main source set instead: the
-// enforcement already happens on every fabric build of the same source, and one source set keeps the ModDevGradle
-// wiring simple. src/neoforge/resources carries the NeoForge-only files (neoforge.mods.toml).
-sourceSets {
-    main {
-        java {
-            srcDir("src/client/java")
-        }
-        resources {
-            srcDir("src/client/resources")
-            srcDir("src/neoforge/resources")
-        }
-    }
+// Mirror the fabric build's client/common source-set split (Stonecutter versions sources per CONVENTIONAL
+// source-set directory, so a real "client" set is what makes it pick up src/client). Loader-specific code lives
+// in loader subpackages of the shared tree; the fabric packages (and the fabric-only Litematica interop under
+// client/compat) are excluded at the source-set level.
+sourceSets.main {
+    java.exclude("**/shulkerinventory/fabric/**")
+}
+val clientSourceSet = sourceSets.create("client") {
+    java.exclude("**/shulkerinventory/client/fabric/**", "**/shulkerinventory/client/compat/**")
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
 }
 
 neoForge {
     version = neoForgeVersion
+    validateAccessTransformers = true
 
     mods {
         // NeoForge mod ids must match [a-z][a-z0-9_]{1,63}: no hyphens, so the id is builders_shulkers here
@@ -53,6 +51,7 @@ neoForge {
         // payload and game rule keeps the builders-shulkers namespace and stays wire-compatible across loaders.
         register("builders_shulkers") {
             sourceSet(sourceSets.main.get())
+            sourceSet(clientSourceSet)
         }
     }
 
@@ -74,6 +73,9 @@ neoForge {
         }
     }
 }
+
+// The client source set compiles against the same modding dependencies (NeoForge + patched Minecraft) as main.
+neoForge.addModdingDependenciesTo(clientSourceSet)
 
 tasks.processResources {
     val props = mapOf(
@@ -99,6 +101,7 @@ java {
 
 tasks.jar {
     archiveClassifier.set("neoforge-$jarMcLabel")
+    from(clientSourceSet.output)
     from("LICENSE") {
         rename { "${it}_${rootProject.name}" }
     }
