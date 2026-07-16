@@ -17,12 +17,12 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 // NeoForge client entrypoint (dist-gated: never constructed on a dedicated server): installs the NeoForge client
 // networking implementation and the config directory, then wires the shared client-side logic into NeoForge's
@@ -79,27 +79,23 @@ public final class BuildersShulkersNeoForgeClient {
 			ShulkerInventoryClient.tickServerModCheck(mc);
 		});
 
-		// Pocket-Build entry/exit on right-click. A right-click routes through one of three events depending on
-		// the target (block / air / entity); all three feed the SAME toggle handler, like the three use callbacks
-		// on fabric. The handler itself ignores non-client and non-main-hand calls (these events also fire on the
-		// logical server), and a non-PASS result cancels the vanilla use exactly like returning it from a fabric
-		// use callback.
-		NeoForge.EVENT_BUS.addListener(PlayerInteractEvent.RightClickBlock.class, event -> {
-			if (PocketBuildClient.handleUse(event.getEntity(), event.getLevel(), event.getHand()) != InteractionResult.PASS) {
-				event.setCanceled(true);
-				event.setCancellationResult(InteractionResult.FAIL);
+		// Pocket-Build entry/exit on right-click. Hooked at the use-KEY trigger, BEFORE the client resolves a
+		// target or commits any interaction packet: NeoForge's PlayerInteractEvent fires inside the client's use
+		// flow AFTER the use packet is already on its way, so cancelling it only suppressed the local action and
+		// the server still placed the block (a content block on enter, the shulker itself on exit). Cancelling
+		// this input event suppresses the whole use, packets included, matching the fabric use-callback behavior.
+		// The shared handler ignores non-main-hand calls and covers every target itself (it never looks at one).
+		NeoForge.EVENT_BUS.addListener(InputEvent.InteractionKeyMappingTriggered.class, event -> {
+			if (!event.isUseItem()) {
+				return;
 			}
-		});
-		NeoForge.EVENT_BUS.addListener(PlayerInteractEvent.RightClickItem.class, event -> {
-			if (PocketBuildClient.handleUse(event.getEntity(), event.getLevel(), event.getHand()) != InteractionResult.PASS) {
-				event.setCanceled(true);
-				event.setCancellationResult(InteractionResult.FAIL);
+			Minecraft mc = Minecraft.getInstance();
+			if (mc.player == null || mc.level == null) {
+				return;
 			}
-		});
-		NeoForge.EVENT_BUS.addListener(PlayerInteractEvent.EntityInteract.class, event -> {
-			if (PocketBuildClient.handleUse(event.getEntity(), event.getLevel(), event.getHand()) != InteractionResult.PASS) {
+			if (PocketBuildClient.handleUse(mc.player, mc.level, event.getHand()) != InteractionResult.PASS) {
 				event.setCanceled(true);
-				event.setCancellationResult(InteractionResult.FAIL);
+				event.setSwingHand(false);
 			}
 		});
 	}
