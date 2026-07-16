@@ -1,0 +1,30 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+issueTrackerURL = "https://github.com/Moncef-dev/builders-shulkers/issues"
+
+# NeoForge mod ids must match [a-z][a-z0-9_]{1,63}, so the id is builders_shulkers here (the fabric id keeps
+# builders-shulkers). Identifier namespaces do allow hyphens, so payloads and game rules keep the
+# builders-shulkers namespace and stay wire-compatible across loaders.
+[[mods]]
+modId = "builders_shulkers"
+version = "${version}"
+displayName = "Builder's Shulkers"
+displayURL = "https://github.com/Moncef-dev/builders-shulkers"
+logoFile = "assets/builders-shulkers/icon.png"
+authors = "Moncef-dev"
+description = '''Open and rearrange shulker box contents directly from your inventory, in a chest-style screen with a lid animation.'''
+
+# The client config declares its mixins under the "client" key, so it is safe to list on a dedicated server:
+# Mixin only applies them in a client environment.
+[[mixins]]
+config = "builders-shulkers.mixins.json"
+[[mixins]]
+config = "builders-shulkers.client.mixins.json"
+
+[[dependencies.builders_shulkers]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neoforge_dep}"
+ordering = "NONE"
+side = "BOTH"
