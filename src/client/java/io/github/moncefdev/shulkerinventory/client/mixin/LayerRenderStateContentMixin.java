@@ -21,6 +21,10 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 	@Unique
 	private boolean shulkerInventory$pocketBuildContent;
 
+	// Scratch for the normal-matrix snapshot below. Render-thread only, like every layer submit.
+	@Unique
+	private static final org.joml.Matrix3f shulkerInventory$normalSnapshot = new org.joml.Matrix3f();
+
 	@Override
 	public void shulkerInventory$setPocketBuildContent(boolean value) {
 		this.shulkerInventory$pocketBuildContent = value;
@@ -34,6 +38,32 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 	@Inject(method = "clear", at = @At("HEAD"))
 	private void shulkerInventory$resetContentFlag(CallbackInfo ci) {
 		this.shulkerInventory$pocketBuildContent = false;
+	}
+
+	// Keep a content layer's lighting normals identical to the same item rendered standalone. Our content layers
+	// carry the in-box shrink in their localTransform; vanilla's Pose.mulPose folds that matrix into the pose's
+	// NORMAL matrix too (a full inverse-transpose recompute), and on the NeoForge render path the quads then shade
+	// as if unlit (dark, no per-face contrast) - bisected in game: with the localTransform gone the lighting is
+	// exactly the standalone slot look, with it the content goes dark. Our localTransform is translate+uniform
+	// scale only (never a rotation), so the normal DIRECTIONS gained nothing from it: snapshot the normal matrix
+	// right before vanilla folds the localTransform in, and restore it right after. Positions keep the full chain
+	// (geometry unchanged, everywhere); only the lighting normals see the vanilla-managed transform, on both
+	// loaders and in every context. If a content localTransform ever gains a rotation, this must rotate the
+	// snapshot accordingly.
+	@Inject(method = "applyTransform",
+			at = @At(value = "INVOKE",
+					target = "Lcom/mojang/blaze3d/vertex/PoseStack$Pose;mulPose(Lorg/joml/Matrix4fc;)V"))
+	private void shulkerInventory$snapshotNormals(PoseStack.Pose pose, CallbackInfo ci) {
+		if (this.shulkerInventory$pocketBuildContent) {
+			shulkerInventory$normalSnapshot.set(pose.normal());
+		}
+	}
+
+	@Inject(method = "applyTransform", at = @At("TAIL"))
+	private void shulkerInventory$restoreNormals(PoseStack.Pose pose, CallbackInfo ci) {
+		if (this.shulkerInventory$pocketBuildContent) {
+			pose.normal().set(shulkerInventory$normalSnapshot);
+		}
 	}
 
 	@Inject(method = "submit", at = @At("HEAD"), cancellable = true)
