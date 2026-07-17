@@ -124,9 +124,19 @@ public abstract class PocketBuildContentLayerMixin {
 		int after = state.shulkerInventory$getActiveLayerCount();
 		ItemStackRenderState.LayerRenderState[] layers = state.shulkerInventory$getLayers();
 		// Tag the appended layers as Pocket-Build content, so the shulker lid mixins keep a nested content shulker static
-		// (closed, no dissolve) while the outer box animates - whatever the draw order or the shulker colour.
+		// (closed, no dissolve) while the outer box animates - whatever the draw order or the shulker colour. Content
+		// whose model REPORTS flat lighting is additionally marked for the GUI flat-brightness lighting treatment,
+		// keyed on the lighting report - NOT on the composition path - so both the true sprites (FLAT kind) and the
+		// flat-lit 3D geometry (shield, banners, calibrated_sculk_sensor, decorated_pot; BLOCK kinds) get their
+		// family's correction (see LayerRenderStateContentMixin).
+		PocketBuildContentLayer.FlatGuiLighting flatGuiLighting = PocketBuildContentLayer.FlatGuiLighting.NONE;
+		if (displayContext == ItemDisplayContext.GUI && PocketBuildContentRender.isFlat(content, level)) {
+			flatGuiLighting = kind.isFlat() ? PocketBuildContentLayer.FlatGuiLighting.SPRITE
+					: PocketBuildContentLayer.FlatGuiLighting.FLAT_LIT_3D;
+		}
 		for (int i = before; i < after; i++) {
 			((PocketBuildContentLayer) (Object) layers[i]).shulkerInventory$setPocketBuildContent(true);
+			((PocketBuildContentLayer) (Object) layers[i]).shulkerInventory$setPocketBuildFlatGuiLighting(flatGuiLighting);
 			shulkerInventory$separateNestedShulkerModel(layers[i]);
 		}
 
@@ -203,6 +213,8 @@ public abstract class PocketBuildContentLayerMixin {
 			// +0.5 compensates ItemTransform.apply: even NO_TRANSFORM (which we assign to the content below) ends with
 			// translate(-0.5,-0.5,-0.5), so the content's final transform is translate(-0.5) x localTransform. We want
 			// the content centre to land on the box centre boxC, hence localTransform must map it to boxC + 0.5.
+			// INVARIANT: content localTransforms are translate + uniform scale ONLY (never a rotation).
+			// LayerRenderStateContentMixin restores the pre-localTransform lighting normals and relies on it.
 			localTransform = new Matrix4f()
 					.translate(boxCx + BOX_CENTER, boxCy + BOX_CENTER + liftY, boxCz + BOX_CENTER)
 					.scale(scale)
@@ -216,11 +228,6 @@ public abstract class PocketBuildContentLayerMixin {
 		for (int i = before; i < after; i++) {
 			layers[i].setItemTransform(ItemTransform.NO_TRANSFORM);
 			layers[i].setLocalTransform(localTransform);
-			// In the GUI slot, mark the flat layer for the flat-brightness lighting treatment (the slot lights the
-			// whole composite with the box's 3D item lighting, which leaves a flat sprite dimmer than its own
-			// flat-lit standalone render; see LayerRenderStateContentMixin).
-			((PocketBuildContentLayer) (Object) layers[i])
-					.shulkerInventory$setPocketBuildFlatGuiContent(displayContext == ItemDisplayContext.GUI);
 		}
 	}
 
@@ -331,6 +338,8 @@ public abstract class PocketBuildContentLayerMixin {
 	// with (not substituted for) each layer's own localTransform, so a special renderer's model-fitting transform is kept.
 	private static void shulkerInventory$applyBlockShrink(ItemStackRenderState.LayerRenderState[] layers, int before,
 			int after) {
+		// INVARIANT: content localTransforms are translate + uniform scale ONLY (never a rotation).
+		// LayerRenderStateContentMixin restores the pre-localTransform lighting normals and relies on it.
 		Matrix4f localTransform = new Matrix4f()
 				.translate(BOX_CENTER, BOX_CENTER, BOX_CENTER)
 				.scale(BLOCK_CONTENT_SCALE)

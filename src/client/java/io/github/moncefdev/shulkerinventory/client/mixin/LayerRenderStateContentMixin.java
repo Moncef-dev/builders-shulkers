@@ -22,18 +22,37 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 	private boolean shulkerInventory$pocketBuildContent;
 
 	@Unique
-	private boolean shulkerInventory$pocketBuildFlatGuiContent;
+	private PocketBuildContentLayer.FlatGuiLighting shulkerInventory$pocketBuildFlatGuiLighting =
+			PocketBuildContentLayer.FlatGuiLighting.NONE;
 
-	// Scratch for the normal-matrix snapshot below. Render-thread only, like every layer submit.
+	// Scratch for the normal-matrix snapshot below. Written by snapshotNormals and consumed by restoreNormals
+	// within one applyTransform call (the two injections always pair up inside that single leaf method), on the
+	// render thread only, like every layer submit - a shared static is safe under exactly those two invariants.
 	@Unique
 	private static final org.joml.Matrix3f shulkerInventory$normalSnapshot = new org.joml.Matrix3f();
 
-	// The standard vanilla block GUI display rotation (degrees), the iso every plain block uses in a slot.
-	// RE-VERIFY at each update against assets/minecraft/models/block/block.json ("gui" display rotation).
+	// The standard block GUI display rotation (degrees), and the tip taking a sprite's front normal (+Z) up to
+	// where a block's TOP face normal (+Y) sits. RE-VERIFY the iso at each update against
+	// assets/minecraft/models/block/block.json ("gui" display rotation).
 	@Unique
-	private static final float shulkerInventory$BLOCK_GUI_ROT_X = 30.0f;
+	private static final float shulkerInventory$BLOCK_GUI_ISO_X = 30.0f;
 	@Unique
-	private static final float shulkerInventory$BLOCK_GUI_ROT_Y = 225.0f;
+	private static final float shulkerInventory$BLOCK_GUI_ISO_Y = 225.0f;
+	@Unique
+	private static final float shulkerInventory$FRONT_TO_TOP_TIP_X = -90.0f;
+
+	// Rotates a normal so its diffuse response under the ITEMS_3D light rig equals its response under the
+	// ITEMS_FLAT rig: both rigs are orthogonal transforms of the same two-light base (built in the Lighting
+	// constructor), so CORR = M_3D * M_FLAT^-1 maps one response onto the other exactly, for any geometry.
+	// RE-VERIFY the two rig transforms at each update against the Lighting constructor (values below are the
+	// 26.x ones: FLAT = rotationY(-0.3926991).rotateX(2.3561945); 3D = scaling(-1,1,1)
+	// .rotateYXZ(1.0821041, 3.2375858, 0).rotateYXZ(-0.3926991, 2.3561945, 0)).
+	@Unique
+	private static final org.joml.Matrix3f shulkerInventory$FLAT_TO_3D_LIGHT = new org.joml.Matrix3f(
+			new org.joml.Matrix4f().scaling(-1.0f, 1.0f, 1.0f)
+					.rotateYXZ(1.0821041f, 3.2375858f, 0.0f)
+					.rotateYXZ(-0.3926991f, 2.3561945f, 0.0f))
+			.mul(new org.joml.Matrix3f(new org.joml.Matrix4f().rotationY(-0.3926991f).rotateX(2.3561945f)).transpose());
 
 	@Override
 	public void shulkerInventory$setPocketBuildContent(boolean value) {
@@ -46,14 +65,14 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 	}
 
 	@Override
-	public void shulkerInventory$setPocketBuildFlatGuiContent(boolean value) {
-		this.shulkerInventory$pocketBuildFlatGuiContent = value;
+	public void shulkerInventory$setPocketBuildFlatGuiLighting(PocketBuildContentLayer.FlatGuiLighting mode) {
+		this.shulkerInventory$pocketBuildFlatGuiLighting = mode;
 	}
 
 	@Inject(method = "clear", at = @At("HEAD"))
 	private void shulkerInventory$resetContentFlag(CallbackInfo ci) {
 		this.shulkerInventory$pocketBuildContent = false;
-		this.shulkerInventory$pocketBuildFlatGuiContent = false;
+		this.shulkerInventory$pocketBuildFlatGuiLighting = PocketBuildContentLayer.FlatGuiLighting.NONE;
 	}
 
 	// Keep a content layer's lighting normals identical to the same item rendered standalone. Our content layers
@@ -77,17 +96,23 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 
 	@Inject(method = "applyTransform", at = @At("TAIL"))
 	private void shulkerInventory$restoreNormals(PoseStack.Pose pose, CallbackInfo ci) {
-		if (this.shulkerInventory$pocketBuildFlatGuiContent) {
-			// Give the flat sprite the brightness of its own flat-lit standalone slot render. The slot lights the
-			// whole composite with the box's 3D item lighting, under which a front-facing sprite sits well below
-			// full brightness; point its front normal (+Z) where a standard block's TOP face lands (the base slot
-			// pose composed with the standard block GUI iso, then +Z tipped up to +Y), whose diffuse clamps to full
-			// brightness - the exact look of the sprite alone in a slot. The sprite's back face lands opposite
-			// (dark), which the GUI slot never shows.
+		// Content that REPORTS flat lighting renders standalone under the ITEMS_FLAT rig; the slot lights the whole
+		// composite once with the box's ITEMS_3D rig, leaving that content dimmer. Two empirically-validated
+		// corrections, each on its family (a single exact rig-to-rig correction SHOULD cover both, but in-game the
+		// sprite one only matches its standalone look with the block-top form - the standalone flat bake does not
+		// share the composite's base pose, so "same response, our base" is not "same pixels"):
+		// - a true 2D sprite: point its front normal (+Z) where a standard block's TOP face lands (base pose, block
+		//   GUI iso 30/225, +Z tipped up to +Y); its diffuse clamps to full brightness = the standalone sprite look.
+		// - flat-lit 3D geometry (shield, banners, calibrated_sculk_sensor, decorated_pot): rotate the normals by
+		//   the ITEMS_FLAT -> ITEMS_3D rig correction, which maps the whole geometry's flat-lit shading onto the 3D
+		//   rig exactly.
+		if (this.shulkerInventory$pocketBuildFlatGuiLighting == PocketBuildContentLayer.FlatGuiLighting.SPRITE) {
 			pose.normal().set(shulkerInventory$normalSnapshot)
-					.rotateXYZ((float) Math.toRadians(shulkerInventory$BLOCK_GUI_ROT_X),
-							(float) Math.toRadians(shulkerInventory$BLOCK_GUI_ROT_Y), 0.0f)
-					.rotateX((float) Math.toRadians(-90.0f));
+					.rotateXYZ((float) Math.toRadians(shulkerInventory$BLOCK_GUI_ISO_X),
+							(float) Math.toRadians(shulkerInventory$BLOCK_GUI_ISO_Y), 0.0f)
+					.rotateX((float) Math.toRadians(shulkerInventory$FRONT_TO_TOP_TIP_X));
+		} else if (this.shulkerInventory$pocketBuildFlatGuiLighting == PocketBuildContentLayer.FlatGuiLighting.FLAT_LIT_3D) {
+			pose.normal().set(shulkerInventory$FLAT_TO_3D_LIGHT).mul(shulkerInventory$normalSnapshot);
 		} else if (this.shulkerInventory$pocketBuildContent) {
 			pose.normal().set(shulkerInventory$normalSnapshot);
 		}
