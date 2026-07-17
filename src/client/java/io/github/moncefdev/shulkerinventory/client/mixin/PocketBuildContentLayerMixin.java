@@ -364,8 +364,19 @@ public abstract class PocketBuildContentLayerMixin {
 		if (boxF != null && conF != null) {
 			float offX = (boxF[0] + boxF[3] - conF[0] - conF[3]) * 0.5f;
 			float offZ = (boxF[2] + boxF[5] - conF[2] - conF[5]) * 0.5f;
-			// Height centred in held and dropped views; in the upright GUI slot the block keeps its natural height.
-			float offY = (held || dropped) ? (boxF[1] + boxF[4] - conF[1] - conF[4]) * 0.5f : 0f;
+			// Height centred in held and dropped views; in the upright GUI slot a plain block keeps its natural
+			// height (a slab rests on the box floor instead of being lifted to the vertical centre). Content drawn
+			// by a special renderer (banner, shield, bed, heads...) is centred in GUI too: an entity model's
+			// geometric centre sits away from the nominal block centre the shrink pivots on, so "natural height"
+			// only leaks that pivot mismatch there (measured: the banner ~0.08 low, the shield ~0.075 high).
+			boolean specialContent = false;
+			for (int i = before; i < after; i++) {
+				if (((LayerRenderStateAccessor) layers[i]).shulkerInventory$getSpecialRenderer() != null) {
+					specialContent = true;
+					break;
+				}
+			}
+			float offY = (held || dropped || specialContent) ? (boxF[1] + boxF[4] - conF[1] - conF[4]) * 0.5f : 0f;
 			for (int i = before; i < after; i++) {
 				ItemTransform it = ((LayerRenderStateAccessor) layers[i]).shulkerInventory$getItemTransform();
 				Vector3fc t = it.translation();
