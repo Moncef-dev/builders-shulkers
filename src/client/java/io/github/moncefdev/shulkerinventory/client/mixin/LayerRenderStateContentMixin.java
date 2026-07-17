@@ -21,9 +21,19 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 	@Unique
 	private boolean shulkerInventory$pocketBuildContent;
 
+	@Unique
+	private boolean shulkerInventory$pocketBuildFlatGuiContent;
+
 	// Scratch for the normal-matrix snapshot below. Render-thread only, like every layer submit.
 	@Unique
 	private static final org.joml.Matrix3f shulkerInventory$normalSnapshot = new org.joml.Matrix3f();
+
+	// The standard vanilla block GUI display rotation (degrees), the iso every plain block uses in a slot.
+	// RE-VERIFY at each update against assets/minecraft/models/block/block.json ("gui" display rotation).
+	@Unique
+	private static final float shulkerInventory$BLOCK_GUI_ROT_X = 30.0f;
+	@Unique
+	private static final float shulkerInventory$BLOCK_GUI_ROT_Y = 225.0f;
 
 	@Override
 	public void shulkerInventory$setPocketBuildContent(boolean value) {
@@ -35,9 +45,15 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 		return this.shulkerInventory$pocketBuildContent;
 	}
 
+	@Override
+	public void shulkerInventory$setPocketBuildFlatGuiContent(boolean value) {
+		this.shulkerInventory$pocketBuildFlatGuiContent = value;
+	}
+
 	@Inject(method = "clear", at = @At("HEAD"))
 	private void shulkerInventory$resetContentFlag(CallbackInfo ci) {
 		this.shulkerInventory$pocketBuildContent = false;
+		this.shulkerInventory$pocketBuildFlatGuiContent = false;
 	}
 
 	// Keep a content layer's lighting normals identical to the same item rendered standalone. Our content layers
@@ -61,7 +77,18 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 
 	@Inject(method = "applyTransform", at = @At("TAIL"))
 	private void shulkerInventory$restoreNormals(PoseStack.Pose pose, CallbackInfo ci) {
-		if (this.shulkerInventory$pocketBuildContent) {
+		if (this.shulkerInventory$pocketBuildFlatGuiContent) {
+			// Give the flat sprite the brightness of its own flat-lit standalone slot render. The slot lights the
+			// whole composite with the box's 3D item lighting, under which a front-facing sprite sits well below
+			// full brightness; point its front normal (+Z) where a standard block's TOP face lands (the base slot
+			// pose composed with the standard block GUI iso, then +Z tipped up to +Y), whose diffuse clamps to full
+			// brightness - the exact look of the sprite alone in a slot. The sprite's back face lands opposite
+			// (dark), which the GUI slot never shows.
+			pose.normal().set(shulkerInventory$normalSnapshot)
+					.rotateXYZ((float) Math.toRadians(shulkerInventory$BLOCK_GUI_ROT_X),
+							(float) Math.toRadians(shulkerInventory$BLOCK_GUI_ROT_Y), 0.0f)
+					.rotateX((float) Math.toRadians(-90.0f));
+		} else if (this.shulkerInventory$pocketBuildContent) {
 			pose.normal().set(shulkerInventory$normalSnapshot);
 		}
 	}

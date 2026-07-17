@@ -41,8 +41,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 //
 // FLAT content (tools, the shield, flat blocks like saplings): a layer in every context, with its own display transform
 // dropped and re-centred on the box's real geometry centre, scaled to 0.6, orientation kept. In held/world its lighting
-// is correct; in the GUI slot it inherits the box's 3D-item lighting so it is dimmer (a separate flat-lit draw would
-// have its own lighting but no shared depth, so it could not be HALF inside the box, in front of one wall and behind
+// is correct; in the GUI slot the composite is lit with the box's 3D-item lighting, under which a flat sprite would
+// sit below its flat-lit standalone brightness - corrected by the flat-brightness normal treatment in
+// LayerRenderStateContentMixin (a separate flat-lit draw was never an option: it would have its own lighting but no
+// shared depth, so it could not be HALF inside the box, in front of one wall and behind
 // another - the dim-but-correctly-occluded layer is the accepted trade-off for now). Gated to the local player's live
 // Pocket-Build shulker.
 @Mixin(ItemModelResolver.class)
@@ -214,6 +216,11 @@ public abstract class PocketBuildContentLayerMixin {
 		for (int i = before; i < after; i++) {
 			layers[i].setItemTransform(ItemTransform.NO_TRANSFORM);
 			layers[i].setLocalTransform(localTransform);
+			// In the GUI slot, mark the flat layer for the flat-brightness lighting treatment (the slot lights the
+			// whole composite with the box's 3D item lighting, which leaves a flat sprite dimmer than its own
+			// flat-lit standalone render; see LayerRenderStateContentMixin).
+			((PocketBuildContentLayer) (Object) layers[i])
+					.shulkerInventory$setPocketBuildFlatGuiContent(displayContext == ItemDisplayContext.GUI);
 		}
 	}
 

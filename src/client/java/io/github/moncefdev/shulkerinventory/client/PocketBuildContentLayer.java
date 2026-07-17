@@ -8,4 +8,8 @@ public interface PocketBuildContentLayer {
 	void shulkerInventory$setPocketBuildContent(boolean value);
 
 	boolean shulkerInventory$isPocketBuildContent();
+
+	// Marks a FLAT content layer composed for the GUI slot, whose lighting normals get the flat-brightness
+	// treatment (see LayerRenderStateContentMixin). Set only by the flat composition path, only in GUI.
+	void shulkerInventory$setPocketBuildFlatGuiContent(boolean value);
 }
