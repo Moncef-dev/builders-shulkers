@@ -11,6 +11,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.jspecify.annotations.Nullable;
 
@@ -27,6 +29,8 @@ public final class PocketBuildContentRender {
 	private static final Map<Item, Boolean> FLAT_BY_ITEM = new ConcurrentHashMap<>();
 	private static final Map<Item, Boolean> FACEON_BY_ITEM = new ConcurrentHashMap<>();
 	private static final Map<Item, Boolean> SPECIAL_BY_ITEM = new ConcurrentHashMap<>();
+	private static final Map<Item, float[]> VANILLA_BBOX_BY_ITEM = new ConcurrentHashMap<>();
+	private static final Map<Item, Map<ItemDisplayContext, float[][]>> CONTEXT_ROTATIONS = new ConcurrentHashMap<>();
 	private static final Map<Item, float[]> BOX_GUI_REF = new ConcurrentHashMap<>();
 
 	public static boolean isFlat(ItemStack content, @Nullable Level level) {
@@ -77,6 +81,77 @@ public final class PocketBuildContentRender {
 			}
 			return false;
 		});
+	}
+
+	// The content's vanilla-space bounding box {minX,minY,minZ,maxX,maxY,maxZ}: raw extents through each layer's own
+	// baked transform, probed on a fresh render state and cached per Item. The geometry criterion behind the two
+	// out-of-block-space rules below - never an item list.
+	private static float[] vanillaBbox(ItemStack content, @Nullable Level level) {
+		return VANILLA_BBOX_BY_ITEM.computeIfAbsent(content.getItem(), item -> {
+			ItemStackRenderState probe = new ItemStackRenderState();
+			Minecraft.getInstance().getItemModelResolver()
+					.updateForTopItem(probe, content, ItemDisplayContext.GUI, level, null, 0);
+			ItemStackRenderStateAccessor state = (ItemStackRenderStateAccessor) probe;
+			ItemStackRenderState.LayerRenderState[] layers = state.shulkerInventory$getLayers();
+			int count = state.shulkerInventory$getActiveLayerCount();
+			float[] bbox = {Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+					Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY};
+			Vector3f scratch = new Vector3f();
+			for (int i = 0; i < count; i++) {
+				LayerRenderStateAccessor layer = (LayerRenderStateAccessor) layers[i];
+				Matrix4f local = layer.shulkerInventory$getLocalTransform();
+				for (Vector3fc extent : layer.shulkerInventory$getExtents().get()) {
+					scratch.set(extent).mulPosition(local);
+					bbox[0] = Math.min(bbox[0], scratch.x());
+					bbox[1] = Math.min(bbox[1], scratch.y());
+					bbox[2] = Math.min(bbox[2], scratch.z());
+					bbox[3] = Math.max(bbox[3], scratch.x());
+					bbox[4] = Math.max(bbox[4], scratch.y());
+					bbox[5] = Math.max(bbox[5], scratch.z());
+				}
+			}
+			return bbox[0] <= bbox[3] ? bbox : new float[] {0, 0, 0, 1, 1, 1};
+		});
+	}
+
+	// Whether the content's vanilla-space geometry is HORIZONTALLY off the block centre the in-box shrink pivots
+	// on (the bed: a two-block-long composite whose z centre sits a whole half-block off). Such an offset leaks
+	// through the display's pitch into the slot's vertical position, so "natural height" is unreliable for this
+	// content and the GUI slot centres it instead. A merely overhanging but centred model (the calibrated sensor's
+	// crystal reaches past the block on x and y, around an on-pivot centre) leaks nothing and keeps its natural
+	// height, same as the plain sensor.
+	public static boolean offPivotHorizontally(ItemStack content, @Nullable Level level) {
+		float[] b = vanillaBbox(content, level);
+		float cx = (b[0] + b[3]) * 0.5f;
+		float cz = (b[2] + b[5]) * 0.5f;
+		float eps = 0.05f;
+		return Math.abs(cx - 0.5f) > eps || Math.abs(cz - 0.5f) > eps;
+	}
+
+
+	// The content's OWN display rotations {x, y, z} (degrees) per layer for a given display context, probed from a
+	// fresh render state of the item in that context and cached per item and context. This is exactly where vanilla
+	// puts the item when held or dropped. The block composition sets these rotations directly on non-special content,
+	// so every model family lands on its vanilla orientation by construction: vanilla's gui -> held display deltas
+	// differ per family (a full cube turns 180 degrees of yaw between gui and hand, stairs and fences 90), so no
+	// single shared delta can match them all.
+	public static float[][] contextRotations(ItemStack content, @Nullable Level level, ItemDisplayContext context) {
+		return CONTEXT_ROTATIONS.computeIfAbsent(content.getItem(), item -> new ConcurrentHashMap<>())
+				.computeIfAbsent(context, ctx -> {
+					ItemStackRenderState probe = new ItemStackRenderState();
+					Minecraft.getInstance().getItemModelResolver()
+							.updateForTopItem(probe, content, ctx, level, null, 0);
+					ItemStackRenderStateAccessor state = (ItemStackRenderStateAccessor) probe;
+					ItemStackRenderState.LayerRenderState[] layers = state.shulkerInventory$getLayers();
+					int count = state.shulkerInventory$getActiveLayerCount();
+					float[][] rotations = new float[count][];
+					for (int i = 0; i < count; i++) {
+						Vector3fc r = ((LayerRenderStateAccessor) layers[i])
+								.shulkerInventory$getItemTransform().rotation();
+						rotations[i] = new float[] {r.x(), r.y(), r.z()};
+					}
+					return rotations;
+				});
 	}
 
 	// The box's GUI display reference {rotX, rotY, rotZ (degrees), uniform scale}, probed deterministically from the box
