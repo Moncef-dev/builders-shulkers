@@ -1,6 +1,6 @@
 package io.github.moncefdev.shulkerinventory.client.mixin;
 
-import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
+import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
 import io.github.moncefdev.shulkerinventory.client.ClientConfig;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildMode;
 import net.minecraft.client.gui.Font;
@@ -26,7 +26,7 @@ public abstract class GuiSelectedContentDecorationsMixin {
 			target = "Lnet/minecraft/client/gui/GuiGraphics;renderItemDecorations(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;II)V"))
 	private void shulkerInventory$decorateSelectedContent(GuiGraphics extractor, Font font, ItemStack stack, int x, int y) {
 		if (PocketBuildMode.isActive()) {
-			Long marker = ShulkerAnimationMarker.get(stack);
+			Long marker = ClientShulkerSession.getAnimationIdForStack(stack);
 			if (marker != null && marker == PocketBuildMode.animationId()) {
 				// Draw only the selected content's count (gated by the "show item count" setting), not the shulker's own
 				// decorations. Disabled -> nothing is drawn here (a shulker is non-stackable, so it has no count anyway).

@@ -1,7 +1,6 @@
 package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.client.ClientConfig;
 import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildContentKind;
@@ -68,7 +67,11 @@ public abstract class PocketBuildContentLayerMixin {
 	@Inject(method = "appendItemLayers", at = @At("TAIL"))
 	private void shulkerInventory$appendPocketBuildContent(ItemStackRenderState output, ItemStack item,
 			ItemDisplayContext displayContext, Level level, ItemOwner owner, int seed, CallbackInfo ci) {
-		Long id = ShulkerAnimationMarker.get(item);
+		// Held contexts resolve through the bridge (owner-gated), so the box's lid, content and badge follow the
+		// click; every other context reads the plain marker (see resolveHeldAnimationId for why).
+		Long id = (displayContext.firstPerson() || shulkerInventory$isThirdPersonHand(displayContext))
+				? ClientShulkerSession.resolveHeldAnimationId(item, owner)
+				: ClientShulkerSession.getAnimationIdForStack(item);
 		if (id == null) {
 			return;
 		}

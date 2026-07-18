@@ -23,7 +23,7 @@ public abstract class FirstPersonHeldItemMixin {
 	@Inject(method = "renderItem", at = @At("HEAD"))
 	private void shulkerInventory$markFirstPerson(LivingEntity entity, ItemStack stack, ItemDisplayContext context,
 			PoseStack pose, SubmitNodeCollector collector, int light, CallbackInfo ci) {
-		Long id = ClientShulkerSession.getAnimationIdForStack(stack);
+		Long id = ClientShulkerSession.resolveHeldAnimationId(stack, entity);
 		if (id != null && ClientShulkerSession.isAnimating(id)) {
 			ClientShulkerSession.setCurrentItemEntityAnimationId(id);
 		}

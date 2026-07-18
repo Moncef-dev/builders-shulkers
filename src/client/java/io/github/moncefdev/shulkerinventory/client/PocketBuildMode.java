@@ -1,5 +1,6 @@
 package io.github.moncefdev.shulkerinventory.client;
 
+import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.ShulkerContents;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
@@ -16,6 +17,12 @@ public final class PocketBuildMode {
 	// Index into the shulker's content slots, or -1 when the shulker has nothing to select.
 	private static int selectedContentSlot = -1;
 	private static long animationId = 0L;
+	// Marker-stripped SNAPSHOT of the box the mode was entered with, for the render's immediate-association
+	// bridge (see ClientShulkerSession.getAnimationIdForStack). The render works on cached COPIES of the
+	// inventory stack (never the same instance), so the bridge matches by full stack EQUALITY with the marker
+	// ignored - stripped on a copy at both ends; matchesIgnoringComponents cannot express this, it short-circuits
+	// on the component-map size before consulting its predicate.
+	private static ItemStack heldSnapshot = null;
 
 	public static boolean isActive() {
 		return active;
@@ -29,6 +36,17 @@ public final class PocketBuildMode {
 		return selectedContentSlot;
 	}
 
+	// Whether this stack IS the mode's box, marker aside: equality against the entry snapshot, both sides
+	// marker-stripped (the rendered copy may carry the PREVIOUS session's stale marker during a quick re-enter).
+	public static boolean matchesModeBox(ItemStack stack) {
+		if (heldSnapshot == null) {
+			return false;
+		}
+		ItemStack stripped = stack.copy();
+		ShulkerAnimationMarker.remove(stripped);
+		return ItemStack.matches(stripped, heldSnapshot);
+	}
+
 	public static long animationId() {
 		return animationId;
 	}
@@ -38,6 +56,9 @@ public final class PocketBuildMode {
 		sourceHotbarSlot = hotbarSlot;
 		selectedContentSlot = firstNonEmptySlot(readContents(shulker));
 		animationId = id;
+		ItemStack snapshot = shulker.copy();
+		ShulkerAnimationMarker.remove(snapshot);
+		heldSnapshot = snapshot;
 	}
 
 	public static void exit() {
@@ -45,6 +66,7 @@ public final class PocketBuildMode {
 		sourceHotbarSlot = -1;
 		selectedContentSlot = -1;
 		animationId = 0L;
+		heldSnapshot = null;
 	}
 
 	// Move the selection to the FIRST stack of the next (scroll forward, direction >= 0) or previous (direction < 0)
