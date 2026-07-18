@@ -16,20 +16,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.lang.reflect.Field;
 import java.util.function.Supplier;
 
-// Optional Litematica interop. This class is loaded ONLY when Litematica is present (isModLoaded gate in
-// ShulkerInventoryClient), so its fi.dy.masa.litematica.* references are never linked without the mod.
-//
-// While holding a shulker in Pocket-Build mode, middle-clicking a Litematica schematic ghost block routes through the
-// SAME logic as the vanilla pick (PocketBuildClient.handlePocketBuildPick): if the block is already in the held shulker,
-// select that content and CANCEL Litematica's pick (no hotbar swap, stay in mode); otherwise exit the mode and let
-// Litematica pick. Litematica consumes the schematic middle-click at malilib's mouse layer (above vanilla
-// MultiPlayerGameMode), so its dedicated SchematicPickBlock event handler is the only place to hook this.
-//
-// WORKAROUND (Litematica 0.27.x / 26.x): SchematicPickBlockEventHandler never resets its private `processingCancelled`
-// flag, so once we return CANCEL, every later schematic pick short-circuits (dead until game restart). Reported upstream
-// to sakura-ryoko. Until it is fixed, we clear the flag via reflection in onSchematicPickBlockCancelled - but ONLY when
-// WE are the canceller, so it never disturbs another mod's cancel and becomes a no-op once Litematica resets the flag
-// itself. Drop the reflection (resetProcessingCancelled) once the upstream fix ships.
+// Optional Litematica interop, loaded ONLY when Litematica is present (isModLoaded gate in the Fabric client
+// entrypoint), so its fi.dy.masa.litematica.* references are never linked without the mod. Middle-clicking a
+// schematic ghost block in Pocket-Build routes through the SAME handlePocketBuildPick as the vanilla pick;
+// Litematica consumes that click at malilib's mouse layer, so its SchematicPickBlock event is the only hook.
+// Includes a reflection workaround for Litematica's sticky processingCancelled flag, applied only when WE were
+// the canceller; drop resetProcessingCancelled once the upstream fix ships. TECHNICAL.md section 12.
 public final class LitematicaPickBlockCompat implements ISchematicPickBlockEventListener {
 
     private static final String LISTENER_NAME = "builders-shulkers";

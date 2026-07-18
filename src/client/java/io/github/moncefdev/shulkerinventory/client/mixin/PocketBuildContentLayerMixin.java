@@ -31,22 +31,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-// Composes the Pocket-Build selected content into the shulker's own item render state, the vanilla bundle technique: the
-// content's layers are appended to the SAME render state, then shrunk 0.6 about a centre. One render state means the
-// content is occluded by the box through the depth test. The content is classified by how it renders, not by item type
-// (see PocketBuildContentRender): a 3D block vs a flat sprite (a sapling is a BlockItem yet flat).
-//
-// 3D BLOCK content (SETTLED, do not touch): rendered with the shulker's own per-context display transform, so it reads
-// as a small 3D block, perfectly placed in slot, first person and third person.
-//
-// FLAT content (tools, the shield, flat blocks like saplings): a layer in every context, with its own display transform
-// dropped and re-centred on the box's real geometry centre, scaled to 0.6, orientation kept. In held/world its lighting
-// is correct; in the GUI slot the composite is lit with the box's 3D-item lighting, under which a flat sprite would
-// sit below its flat-lit standalone brightness - corrected by the flat-brightness normal treatment in
-// LayerRenderStateContentMixin (a separate flat-lit draw was never an option: it would have its own lighting but no
-// shared depth, so it could not be HALF inside the box, in front of one wall and behind
-// another - the dim-but-correctly-occluded layer is the accepted trade-off for now). Gated to the local player's live
-// Pocket-Build shulker.
+// Composes the Pocket-Build selected content into the shulker's own item render state, the vanilla bundle technique:
+// the content's layers are appended to the SAME render state (shared depth = the content reads as sitting INSIDE the
+// box), then oriented, shrunk and centred by the passes below. Content is classified by HOW it renders, never by item
+// type (see PocketBuildContentRender and PocketBuildContentKind); flat-reporting content is additionally marked for
+// the GUI lighting correction applied in LayerRenderStateContentMixin. Gated to the local player's live Pocket-Build
+// shulker. The full composition rationale lives in TECHNICAL.md section 8.
 @Mixin(ItemModelResolver.class)
 public abstract class PocketBuildContentLayerMixin {
 	// Separate-model shulker renderers for NESTED content shulkers, cached per colour sprite, so a content
@@ -126,15 +116,11 @@ public abstract class PocketBuildContentLayerMixin {
 		}
 	}
 
-	// Classify the content by how it renders (see PocketBuildContentRender), telling apart two "reports FLAT lighting but
-	// is really 3D" cases by the NATIVE GUI rotation:
-	//  - decorated_pot: reports flat AND is face-on (rotation ~0). Its inventory iso normally comes from the oversized
-	//    PIP, which our in-box composition bypasses, so the flat path would draw it as a flat icon. Route it to the 3D
-	//    path AND substitute the standard block iso (BLOCK_OVERSIZED).
-	//  - calibrated_sculk_sensor / banners / a tilted shield: report flat but are ALREADY iso-rotated natively (a 3D
-	//    block with front gui_light, a banner, a shield's display). They take the unified 3D path AS-IS so they follow
-	//    the box instead of being drawn flat (BLOCK). This also pulls shield + banners onto the 3D path.
-	// Every non-flat item is a 3D block and takes the unified block path (BLOCK).
+	// Classify by render signals, splitting the two "reports FLAT lighting but is really 3D" cases on the NATIVE
+	// GUI rotation: face-on special blocks (decorated_pot) go BLOCK_OVERSIZED (3D path + block iso substituted,
+	// their inventory iso normally comes from the oversized PIP this composition bypasses); natively iso-rotated
+	// flat-reporting models (banners, a tilted shield, front-gui_light blocks) go BLOCK as-is. Everything non-flat
+	// is BLOCK. TECHNICAL.md section 8 (classification).
 	private static PocketBuildContentKind shulkerInventory$classify(ItemStack content, Level level) {
 		boolean flatReport = PocketBuildContentRender.isFlat(content, level);
 		if (!flatReport) {
@@ -176,18 +162,11 @@ public abstract class PocketBuildContentLayerMixin {
 				|| displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
 	}
 
-	// FLAT content: drop the content's own display transform (a flat GUI transform has no rotation, so the current
-	// horizontal orientation is preserved) and apply only a centre + scale onto the box's ACTUAL geometry centre, read
-	// from the box's OWN layers, not the nominal block centre (0.5,0.5,0.5). As an item the shulker box is rendered in
-	// its entity model's native space (ShulkerBoxRenderer skips the block-entity re-centring transform for items), so its
-	// visual centre is not (0.5,0.5,0.5); a held flat item placed there drifts onto the hand. Matching the box's real
-	// extents centre works in every context (same space) and scales the content to 0.6 of the box.
-	// Box: its TRUE centre in render space = full per-layer transform (itemTransform AND localTransform) applied; the box
-	// layer carries a non-identity localTransform, so itemTransform alone misplaces the centre. Content: raw model
-	// extents, since its own transform is dropped to NO_TRANSFORM here and re-derived.
-	// Per-context flat tweaks (held only; the GUI slot and any other context keep the defaults, untouched):
-	//  - third person shrinks a bit more (0.4),
-	//  - first person lifts the sprite up a touch in the box.
+	// FLAT content: drop the content's own display transform (a flat GUI transform has no rotation) and centre +
+	// scale it onto the box's REAL geometry centre, read from the box's own layers with their full transforms -
+	// the box is drawn in entity-model native space, so its visual centre is NOT (0.5,0.5,0.5) and content placed
+	// there drifts onto the hand. Held-only tweaks: third person shrinks a bit more, first person lifts the sprite
+	// a touch. TECHNICAL.md section 8 (the flat path).
 	private static void shulkerInventory$applyFlatContent(ItemStackRenderState.LayerRenderState[] layers, int before,
 			int after, ItemDisplayContext displayContext) {
 		float flatScale = shulkerInventory$isThirdPersonHand(displayContext)
@@ -261,26 +240,12 @@ public abstract class PocketBuildContentLayerMixin {
 		}
 	}
 
-	// Orient held/dropped 3D content. Two branches, both vanilla-derived:
-	//  - BOX-ALIGNED standard poses (cubes, stairs, fences, orientables): set each layer's rotation to the content's
-	//    OWN display rotation for THIS context, probed from its model (see PocketBuildContentRender.contextRotations).
-	//    That is exactly where vanilla puts the held/dropped item, for every family by construction. A shared delta
-	//    cannot do this: vanilla's gui -> held deltas differ per family (a full cube turns 180 degrees of yaw between
-	//    its gui and hand displays, stairs and fences 90, the furnace overrides first person on its own), and
-	//    following the box's own delta (90) matched the stairs family but held every full cube 90 degrees off vanilla.
-	//  - Everything else follows the box: the SAME rotation the box undergoes from its GUI display to this context
-	//    (delta = boxRot(context) * boxRot(gui)^-1), pre-multiplied onto the layer's own GUI rotation - it keeps its
-	//    showcase GUI orientation and merely turns with the box. This covers special-renderer content (heads,
-	//    statues, chests, pot, a nested shulker - their held displays are posed-in-hand transforms) AND any model
-	//    with an AESTHETIC hand pose (the bed's 30/340, heavy_core's 45/45, the dripleaves' 0/0): those angles are
-	//    tuned for the hand together with a translation and scale this composition does not take, and nested in the
-	//    box they read askew/broken. Simply copying the box's rotation for these would drop the content's intrinsic
-	//    part and, combined with an entity model's own fit flip, turn a copper golem statue upside down.
-	// The gate between the two is GEOMETRIC, no item list: the own-context rotation is used only when it leaves the
-	// content 90-degree axis-aligned with the box in the box's local frame (a cube-group rotation) - the signature of
-	// the standard block display family. An aesthetic pose fails the test and follows the box, unknown modded
-	// families degrade to the safe branch. Done before the size + centring passes so both measure the final
-	// orientation. The GUI reference (boxRef) is probed deterministically from the box's own item model (boxGuiRef).
+	// Orient held/dropped 3D content, two vanilla-derived branches: a standard block pose takes the content's OWN
+	// display rotation for this context (vanilla-exact per family; a shared delta cannot match cubes AND stairs at
+	// once); everything else - special renderers and aesthetic hand poses - follows the box via
+	// delta = boxRot(context) * boxRot(gui)^-1. The gate is geometric (isBoxAligned), never an item list, and an
+	// unknown family degrades to the safe box-following branch. Runs before the size + centring passes so they
+	// measure the final orientation. Full rationale: TECHNICAL.md section 8 (orientation).
 	private static void shulkerInventory$applyContextOrientation(ItemStackRenderState.LayerRenderState[] layers,
 			int before, int after, float[] boxRef, ItemDisplayContext displayContext, ItemStack content, Level level) {
 		float[][] own = PocketBuildContentRender.contextRotations(content, level, displayContext);
@@ -346,15 +311,10 @@ public abstract class PocketBuildContentLayerMixin {
 		}
 	}
 
-	// Shrink content to a CONSTANT 0.6x of its OWN vanilla GUI size, exactly like a plain block (deepslate). Uniform, so
-	// two blocks with the same body (sculk_sensor vs calibrated_sculk_sensor, whose extra amethyst horn only widens its
-	// bbox on one axis) render at the SAME height - as they do in the vanilla slot, where every block uses the same fixed
-	// GUI scale. A naturally small model (conduit, ~0.6 of a full block) keeps its small proportion (0.6x of its small
-	// size), NOT inflated to fill the box. An earlier version scaled to 0.6 OF THE BOX (0.6 * box/content), which inflated
-	// small conduits; a min(1, box/content) cap was then added to undo that, but it ALSO over-shrank any block whose bbox
-	// merely exceeds the box on one thin axis (calibrated's horn) - breaking the same-height match. The constant 0.6x
-	// needs no cap: even the largest content (spore_blossom, ~1.25 box) still sits well inside the box at 0.6x. Composed
-	// with (not substituted for) each layer's own localTransform, so a special renderer's model-fitting transform is kept.
+	// Shrink content to a CONSTANT 0.6x of its OWN vanilla GUI size, like the vanilla slot's single fixed block
+	// scale: same-body blocks stay same-height and a naturally small model stays small (never a box-relative cap,
+	// which over-shrank thin-axis overhangs like the calibrated sensor's horn). Composed with - never substituted
+	// for - each layer's own localTransform, so a special renderer's model fit is kept. TECHNICAL.md section 8.
 	private static void shulkerInventory$applyBlockShrink(ItemStackRenderState.LayerRenderState[] layers, int before,
 			int after) {
 		// NB: the composed localTransform's DIRECTION part is the fit's own (our factor is translate + uniform
@@ -371,13 +331,10 @@ public abstract class PocketBuildContentLayerMixin {
 		}
 	}
 
-	// Centre the block on the box. X and Z (horizontal) are centred in every view, so the block stays inside the box and
-	// does not drift toward the hand. The HEIGHT (Y) is centred in held AND dropped views: there the box is posed
-	// (tilted), so the full 3-axis centre is what keeps the block contained - dropping Y there also skews the apparent
-	// X/Z under the pose rotation. In the upright GUI slot the height is NOT centred, so the block keeps its natural
-	// height (a slab rests on the box floor instead of being lifted to the vertical centre). The offset is added to the
-	// block's display transform translation, shifting the content in the box's shared (pre-outer-pose) space so it lands
-	// centred whatever the pose is. Orientation kept.
+	// Centre the block on the box: X and Z in every view; the HEIGHT in held and dropped views (the posed box needs
+	// the full 3-axis centre) and, in the GUI slot, only for the groups whose "natural height" is not their slot
+	// look (see the loop below) - a slab keeps resting on the box floor. The offset is added to the display
+	// translation, in the box's shared pre-outer-pose space. TECHNICAL.md section 8 (centre offset).
 	private static void shulkerInventory$applyBlockCentring(ItemStackRenderState.LayerRenderState[] layers, int before,
 			int after, ItemDisplayContext displayContext, boolean held, boolean dropped, ItemStack content,
 			Level level) {
@@ -386,17 +343,10 @@ public abstract class PocketBuildContentLayerMixin {
 		if (boxF != null && conF != null) {
 			float offX = (boxF[0] + boxF[3] - conF[0] - conF[3]) * 0.5f;
 			float offZ = (boxF[2] + boxF[5] - conF[2] - conF[5]) * 0.5f;
-			// Height centred in held and dropped views; in the upright GUI slot a plain block keeps its natural
-			// height (a slab rests on the box floor instead of being lifted to the vertical centre). Three content
-			// groups are centred in GUI too, because "natural height" is not their intended slot look:
-			//  - special-renderer content (banner, shield, heads...): entity-model native space, its geometric
-			//    centre sits away from the block centre (measured: the banner ~0.08 low, the shield ~0.075 high);
-			//  - content whose geometry is horizontally OFF the shrink pivot (the bed, a two-block-long composite
-			//    with its z centre half a block off): the pivot mismatch leaks through the display's pitch as a
-			//    vertical offset. A merely overhanging but on-pivot model (the calibrated sensor's crystal) leaks
-			//    nothing and keeps its natural height, same as the plain sensor;
-			//  - content whose own gui display lifts it vertically (heavy_core): vanilla itself centres it in the
-			//    slot tile, so the box centres it the same way.
+			// Three groups are Y-centred in GUI too, "natural height" not being their slot look: special-renderer
+			// content (entity-model space), geometry horizontally off the shrink pivot (the bed - a merely
+			// overhanging but on-pivot model like the calibrated sensor keeps natural height), and content whose
+			// own gui display lifts it (heavy_core). TECHNICAL.md section 8 (centre offset).
 			boolean offBlockSpace = PocketBuildContentRender.offPivotHorizontally(content, level);
 			for (int i = before; !offBlockSpace && i < after; i++) {
 				LayerRenderStateAccessor layer = (LayerRenderStateAccessor) layers[i];

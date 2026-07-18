@@ -56,16 +56,11 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 		this.shulkerInventory$pocketBuildFlatGuiLit = false;
 	}
 
-	// Keep a content layer's lighting normals identical to the same item rendered standalone. Our content layers
-	// carry the in-box shrink in their localTransform; vanilla's Pose.mulPose folds that matrix into the pose's
-	// NORMAL matrix too (a full inverse-transpose recompute), and on the NeoForge render path the quads then shade
-	// as if unlit (dark, no per-face contrast) - bisected in game: with the localTransform gone the lighting is
-	// exactly the standalone slot look, with it the content goes dark. So: snapshot the normal matrix right
-	// before vanilla folds the localTransform in, and after the fold restore the snapshot composed with only the
-	// localTransform's DIRECTION part (see shulkerInventory$localDirectionPart) - the normal directions vanilla
-	// would have kept, without the scale that breaks the shading. Positions keep the full chain (geometry
-	// unchanged, everywhere); only the lighting normals see the vanilla-managed transform, on both loaders and in
-	// every context.
+	// Keep a content layer's lighting normals identical to the same item rendered standalone: vanilla's mulPose
+	// folds the localTransform (our in-box shrink included) into the pose's NORMAL matrix, which makes quads
+	// shade as if unlit on the NeoForge render path. Snapshot the normal matrix before the fold, restore it after
+	// composed with only the localTransform's DIRECTION part. Positions keep the full chain; only the lighting
+	// normals are steered. TECHNICAL.md section 8 (in-box lighting).
 	@Inject(method = "applyTransform",
 			at = @At(value = "INVOKE",
 					target = "Lcom/mojang/blaze3d/vertex/PoseStack$Pose;mulPose(Lorg/joml/Matrix4fc;)V"))
@@ -75,15 +70,11 @@ public abstract class LayerRenderStateContentMixin implements PocketBuildContent
 		}
 	}
 
-	// The DIRECTION part (rotation and mirror, scale and translation stripped) of this layer's localTransform:
-	// its columns, normalized. A content localTransform is not only our translate + uniform shrink - for a
-	// special-model layer it also carries the model's own baked transformation, and vanilla builds entity models
-	// like the shield and banners Y-down and flips them with a scale(1,-1,-1) MIRROR there (see
-	// SpecialModelWrapper, which installs the special renderer's transformation as the layer's localTransform).
-	// Standalone rendering folds that mirror into the lighting normals; a restore that drops the localTransform
-	// entirely drops the mirror too and mislights exactly those models. So the restore keeps the direction part:
-	// identity for plain blocks and sprites (their localTransform never rotates), the model's own mirror or
-	// rotation where one exists - whatever the model defines, nothing hardcoded per item.
+	// The DIRECTION part (rotation and mirror; scale and translation stripped) of this layer's localTransform,
+	// its columns normalized. A special model's localTransform carries its baked transformation - the shield and
+	// banner entity models are built Y-down and MIRRORED there - and standalone rendering folds that mirror into
+	// the lighting normals, so the restore keeps it. Identity for plain blocks and sprites.
+	// TECHNICAL.md section 8 (in-box lighting).
 	@Unique
 	private org.joml.Matrix3f shulkerInventory$localDirectionPart() {
 		org.joml.Matrix4f local = ((LayerRenderStateAccessor) (Object) this).shulkerInventory$getLocalTransform();

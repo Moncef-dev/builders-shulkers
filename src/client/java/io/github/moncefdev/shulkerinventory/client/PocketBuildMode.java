@@ -17,11 +17,8 @@ public final class PocketBuildMode {
 	// Index into the shulker's content slots, or -1 when the shulker has nothing to select.
 	private static int selectedContentSlot = -1;
 	private static long animationId = 0L;
-	// Marker-stripped SNAPSHOT of the box the mode was entered with, for the render's immediate-association
-	// bridge (see ClientShulkerSession.getAnimationIdForStack). The render works on cached COPIES of the
-	// inventory stack (never the same instance), so the bridge matches by full stack EQUALITY with the marker
-	// ignored - stripped on a copy at both ends; matchesIgnoringComponents cannot express this, it short-circuits
-	// on the component-map size before consulting its predicate.
+	// Marker-stripped snapshot of the entered box, for the render's association bridge
+	// (ClientShulkerSession.resolveHeldAnimationId; TECHNICAL.md section 3).
 	private static ItemStack heldSnapshot = null;
 
 	public static boolean isActive() {
@@ -36,8 +33,9 @@ public final class PocketBuildMode {
 		return selectedContentSlot;
 	}
 
-	// Whether this stack IS the mode's box, marker aside: equality against the entry snapshot, both sides
-	// marker-stripped (the rendered copy may carry the PREVIOUS session's stale marker during a quick re-enter).
+	// Whether this stack IS the mode's box, marker aside: full equality, both sides marker-stripped on a copy
+	// (never matchesIgnoringComponents: it short-circuits on the component-map size before its predicate). The
+	// rendered copy may still carry the previous session's stale marker during a quick re-enter.
 	public static boolean matchesModeBox(ItemStack stack) {
 		if (heldSnapshot == null) {
 			return false;

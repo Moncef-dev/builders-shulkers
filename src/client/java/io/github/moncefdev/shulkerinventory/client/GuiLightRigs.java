@@ -5,16 +5,11 @@ import org.joml.Matrix3fc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
-// The GUI lighting rig correction, DERIVED at runtime from vanilla's own light rigs instead of duplicating their
-// values. LightingRigCaptureMixin captures the final transformed light directions vanilla computes for the
-// ITEMS_FLAT and ITEMS_3D rigs (both are orthogonal transforms of the same two-light base, so the pairs are
-// congruent); this class rebuilds the rotation mapping the flat pair onto the 3D pair from the two captured
-// pairs (orthonormal frame of each pair, correction = F_3D x F_FLAT^T). Rotating a lighting normal by that
-// correction makes its diffuse response under the ITEMS_3D rig equal its response under ITEMS_FLAT, for any
-// geometry - see LayerRenderStateContentMixin. The frame construction yields a proper rotation even where the
-// exact rig quotient contains a mirror; the difference lies entirely along the direction orthogonal to both
-// lights, which contributes nothing to either diffuse dot product, so the lighting response is identical.
-// Whatever values a Minecraft update (or anything else re-tuning the rigs) uses, the correction follows.
+// The GUI ITEMS_FLAT -> ITEMS_3D lighting rig correction, DERIVED at runtime from vanilla's own rig values
+// (captured by LightingRigCaptureMixin) instead of duplicating them: an orthonormal frame per captured light
+// pair, correction = F_3D x F_FLAT^T. The frame construction yields a proper rotation even where the exact rig
+// quotient contains a mirror - the difference lies along the direction orthogonal to both lights, invisible to
+// the diffuse dot products. TECHNICAL.md section 8 (in-box lighting).
 public final class GuiLightRigs {
 	private GuiLightRigs() {}
 

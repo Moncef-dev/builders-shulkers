@@ -1,25 +1,35 @@
-# Builder's Shulkers - Technical Documentation (v1.2.2)
+# Builder's Shulkers - Technical Documentation (v1.2.3)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.2.2. This is the 26.x branch
-(Minecraft 26.1.x and 26.2); the 1.21.x line lives on its own branch.
+their scope, and known risks. Describes the state as shipped in v1.2.3. This is the 26.x branch
+(Minecraft 26.1.x and 26.2); the 1.21.x line lives on its own branch with the same architecture.
 
 ## Environment
 
-- Loader: Fabric. Minecraft 26.1.2 and 26.2 (one source, both jars; see Multi-version build below). The 26.1.2 build,
-  shipped as `...-fabric-26.1.x.jar`, also runs on 26.1 and 26.1.1 (the whole 26.1.x family, via a widened dependency
-  range). JDK 25.
+- Loaders: Fabric AND NeoForge (1.2.3), from one shared source tree; see Multi-version, multi-loader build below.
+  Minecraft 26.1.2 and 26.2. The 26.1.2 builds, shipped as `...-<loader>-26.1.x.jar`, also run on 26.1 and 26.1.1
+  (the whole 26.1.x family via a widened dependency range; stable NeoForge only exists for 26.1.2, but the 26.1.0
+  and 26.1.1 beta NeoForge builds are covered too, the mod classes being verified byte-compatible across the
+  family). JDK 25 (the NeoForge toolchain also needs a JDK 21 installation for its own tools).
 - Mappings: official Mojang names (MC 26.1+ ships deobfuscated), not Yarn.
 - Split source sets: `client` (rendering, input, screens) and `main` (registration,
   menu, networking). Client code is never called from common code.
 
-### Multi-version build (Stonecutter)
+### Multi-version, multi-loader build (Stonecutter + per-loader buildscripts)
 
-One source tree builds a jar per supported Minecraft version
-(`builders-shulkers-<mod_version>-fabric-26.1.x.jar` and `...-fabric-26.2.jar`), split with Stonecutter:
-`settings.gradle.kts` declares the versions, `build.gradle.kts` is the shared per-version script (the dependency
-pins are keyed on the active version), and `stonecutter.gradle.kts` is the version controller. `./gradlew build`
-builds every version; the mod version stays clean and only the jar classifier carries the Minecraft version.
+One source tree builds a jar per (Minecraft version, loader) pair
+(`builders-shulkers-<mod_version>-fabric-26.1.x.jar`, `...-neoforge-26.2.jar`, ...), split with Stonecutter:
+`settings.gradle.kts` declares one build node per pair, each applying its loader's own buildscript
+(`build.fabric.gradle.kts` on fabric-loom, `build.neoforge.gradle.kts` on ModDevGradle) - the node id
+`<mc>-<loader>` is mapped to its logical Minecraft version so the suffix does not skew version comparisons -
+and `stonecutter.gradle.kts` is the version controller. The mod version stays clean and only the jar classifier
+carries the loader and the Minecraft family.
+
+Loader-specific code lives in loader subpackages of the shared tree (`...shulkerinventory.fabric`,
+`.client.fabric`, `.neoforge`), excluded at the source-set level by the other loader's buildscript: Stonecutter
+only versions the conventional source-set directories, so separate per-loader directories would be silently
+ignored on non-active nodes. The shared code reaches loader services through a minimal platform layer (see
+section 13); it never imports a loader API.
 
 The source is kept in 26.2 form (the vcs version) and a handful of global Stonecutter replacements rewrite it back
 to 26.1.2 at configure time. They cover the only client-side API deltas between the two versions:
@@ -131,9 +141,21 @@ client renderer can recognize the animating stack wherever it is drawn (GUI, han
   applies to `minecraft:damage`): the marker lives in `custom_data` and `minecraft:container` is likewise unflagged,
   neither of which vanilla ignores in its swap-equality check, so the mixin is the only thing handling them.
 - The animation state machine (progress, OPENING/OPENED/CLOSING) is purely client-side in
-  `ClientShulkerSession`. Progress is held back until the renderer has consumed the prior frame's value (a defer-tick,
-  scoped to the local animation), so a freshly opened lid does not jump ahead of its first rendered frame. The marker is
-  never stripped during a session (see section 7 for why); it is cleared at the next login.
+  `ClientShulkerSession`. For the SCREEN open, progress is held back until the renderer first follows the animation,
+  so the lid starts lifting from zero instead of jumping to wherever it ticked during the menu round-trip. The
+  Pocket-Build open does NOT hold (1.2.3): its association bridge (below) links the render on the next frame, and
+  holding cost the open one tick per cycle that the close never lost - rapid open/close clicking visibly ratcheted
+  the lid toward closed. The marker is never stripped during a session (see section 7 for why); it is cleared at
+  the next login.
+- Immediate-association bridge (1.2.3). The marker that links a stack to its animation is written by the SERVER,
+  so on a Pocket-Build enter the held lid used to sit still for the payload round-trip (and a quick re-enter kept
+  following the stale previous marker). `ClientShulkerSession.resolveHeldAnimationId` bridges that window: until
+  the held-box identity guard (section 8) confirms the mode's marker landed, a stack that matches the mode's box -
+  full equality against a marker-stripped snapshot taken at entry - AND whose holder is the local player resolves
+  to the mode's own animation id, overriding a stale marker. The holder gate is what makes the equality match
+  safe: every empty shulker of a colour is bit-identical, so only the first-person draw and the local player's
+  hand-context content append use the bridge; GUI slots, item entities and other players' hands read the plain
+  marker and never twitch. Strictly read-only - no stack is mutated mid-session (the section 7 lesson).
 
 ## 4. Rendering (reuse of vanilla openness)
 
@@ -152,8 +174,9 @@ there is no broad fallback (so the local player's animation can never bleed onto
 Shared animation (multiplayer). The animation state machine is per-client, so by default only the player who
 opened a shulker sees its lid move. To make it visible on a shulker HELD by another player, the server broadcasts
 open/close events (`RemoteShulkerAnimationPayload`) to the players who can see the holder, and those clients run the
-same animation locally (`startOpeningRemote` / `startClosing`). The broadcast is gated on `ServerPlayNetworking.canSend`
-per viewer, so it is never sent to a vanilla client (no mod) or to a viewer that is mid-join. The initiator animates
+same animation locally (`startOpeningRemote` / `startClosing`). The broadcast is gated per viewer on the platform's
+`canSend` (Fabric: `ServerPlayNetworking.canSend`; NeoForge: `connection.hasChannel`), so it is never sent to a
+vanilla client (no mod) or to a viewer that is mid-join. The initiator animates
 locally and is excluded; in singleplayer there are no other viewers, so it is a no-op and solo behavior is unchanged.
 On the VIEWER side, the client's "Multiplayer animations" setting (section 10) gates this: when off, the remote open is
 not started and the mirrored sound is not played, so the viewer sees and hears nothing of OTHER players' held shulkers
@@ -188,8 +211,8 @@ Server (`builders-shulkers.mixins.json`):
 
 Client (`builders-shulkers.client.mixins.json`):
 - `ShulkerSlotClickMixin` / `ShulkerCreativeSlotClickMixin` -> `slotClicked` (HEAD, cancellable):
-  route a right-click on a shulker to the open handler. The interception is gated on
-  `ClientPlayNetworking.canSend(OpenShulkerPayload.TYPE)`: on a server that does not run the mod the
+  route a right-click on a shulker to the open handler. The interception is gated on the platform's
+  `canSend(OpenShulkerPayload.TYPE)` (section 13): on a server that does not run the mod the
   server cannot receive the open request, so the click is left to vanilla and the shulker keeps its
   normal right-click behavior instead of being a dead click.
 - `CreativeSlotWrapperAccessor`: unwrap the creative slot wrapper.
@@ -197,6 +220,11 @@ Client (`builders-shulkers.client.mixins.json`):
   to the shulker screen lifecycle.
 - `ShulkerAnimatedMixin` / `GuiItemAtlasMixin` / `ShulkerBoxOpennessMixin`: drive the GUI lid
   openness from animation progress.
+- `LayerRenderStateContentMixin`: the per-layer content flag and side channel (section 8), and the content
+  lighting-normal correction (snapshot/direction restore + the flat-to-3D rig rotation; the in-box lighting
+  subsection of section 8).
+- `LightingRigCaptureMixin` -> `Lighting.updateBuffer` (HEAD): captures the transformed light directions of the
+  ITEMS_FLAT and ITEMS_3D GUI rigs, from which `GuiLightRigs` derives the rig correction at runtime.
 - `ItemEntityRenderStateMixin` / `ItemEntityRendererMixin`: animate the lid on dropped shulkers.
 - `HeldItemAnimationMixin` -> `ItemInHandLayer.submitArmWithItem` (HEAD/RETURN): publish the animation id
   around the third-person held-item draw so the lid animates on a shulker held by an entity (another player).
@@ -233,7 +261,7 @@ Client (`builders-shulkers.client.mixins.json`):
   `pocket_build`), sent on join and on every change. Custom gamerules are NOT synced to the client automatically, so
   the client caches them (`ClientGameRuleState`) to gate its own interception in step with the server (section 9).
 
-## 7. Known limitations and risks (v1.2.2)
+## 7. Known limitations and risks (v1.2.3)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -411,17 +439,25 @@ the same shared (pre-outer-pose) space, so the shared outer pose preserves the a
 display (big/small dripleaf), and a special-renderer block (statue, chest, conduit, bed, mob head, shulker, decorated
 pot) - takes ONE path: appended with the GUI (inventory) display, turned to follow the box, shrunk, and re-centred.
 
-- Orientation - follow the box (`boxGuiRef` + a rotation delta). The content is appended with the GUI display, which is
-  correct in the slot for every block. In held and dropped (on-the-ground) views the box turns to a non-GUI display, so
-  the content must turn WITH it.
-  Applied per layer: `delta = boxRot(context) * boxRot(gui)^-1` (the rotation the box itself undergoes from its GUI
-  display to this context), pre-multiplied onto the layer's own GUI rotation (composed in quaternions, re-expressed as
-  Euler XYZ to match `ItemTransform`). So the content keeps its correct inventory orientation and merely follows the
-  box - exactly like a plain block does. A block's OWN per-context display is NOT used because it can be a "held in the
-  hand" pose in third person (mob heads, statues, the dripleaf's custom display) that reads as held-by-the-player; a
-  plain block (deepslate) lands on the orientation it already had natively (the delta reconstructs it), so it is
-  unchanged in result, while a custom/special block is pulled onto the same box-following orientation. `boxRot(gui)` is
-  the reference read from `boxGuiRef` (below). Scope: all non-flat content.
+- Orientation in held and dropped views (reworked in 1.2.3). The content is appended with the GUI display, correct
+  in the slot for every block; held and dropped views then re-orient it per layer, through one of two
+  vanilla-derived branches gated GEOMETRICALLY (`isBoxAligned`), never by item:
+  - Standard block poses: the layer takes the content's OWN display rotation for the actual context (probed and
+    cached per item and context) - exactly where vanilla puts that held/dropped item, for every model family by
+    construction. A shared delta cannot do this: vanilla's gui-to-hand deltas differ per family (a full cube turns
+    180 degrees of yaw between its gui and hand displays, stairs and fences 90, the furnace overrides first person
+    on its own), and the earlier follow-the-box delta happened to match the stairs family while holding every full
+    cube 90 degrees off vanilla.
+  - Everything else follows the box: `delta = boxRot(context) * boxRot(gui)^-1` (the rotation the box itself
+    undergoes from its GUI display to this context, `boxRot(gui)` read from `boxGuiRef`), pre-multiplied onto the
+    layer's own GUI rotation. This covers special-renderer content (heads, statues, chests, a nested shulker -
+    their held displays are posed-in-hand transforms that read wrong nested in the box) and any model with an
+    AESTHETIC hand pose (the bed's 30/340, heavy_core's 45/45, the dripleaves' 0/0 - angles tuned for the hand
+    together with translations and scales this composition does not take).
+  The gate: the own-context rotation is used only when it leaves the content 90-degree axis-aligned with the box
+  in the box's local frame (a cube-group rotation, the signature of the standard block display family); an
+  aesthetic pose fails the test and follows the box, and unknown modded families degrade to that safe branch.
+  Scope: all non-flat content.
 - The shrink is COMPOSED with each layer's own localTransform, not substituted for it: a plain block has an identity
   localTransform there, but a special block-entity renderer keeps its model-fitting transform there - the entity-model
   Y-flip and scaling, and a bed's separate HEAD/FOOT placement - so composing preserves it; substituting it dropped the
@@ -447,7 +483,18 @@ pot) - takes ONE path: appended with the GUI (inventory) display, turned to foll
   (tilted) and the full three-axis centre is what keeps the content contained (dropping Y there also skews the apparent
   X/Z under the pose rotation). In the upright GUI slot the height is NOT centred, so the block keeps its natural height -
   a slab rests on the box floor instead of being lifted to the vertical centre, and a calibrated_sculk_sensor keeps its
-  own height. For a cube-filling block the horizontal offset is ~0, so it is untouched.
+  own height (level with the plain sensor). Three content groups ARE centred vertically in the GUI too (1.2.3),
+  because "natural height" is not their intended slot look - each detected by a geometric or display property,
+  never an item list:
+  - special-renderer content (banner, shield, heads, ...): entity-model native space, its geometric centre sits
+    away from the block centre the shrink pivots on (measured: the banner ~0.08 low, the shield ~0.075 high);
+  - content whose geometry is horizontally OFF the shrink pivot (the bed, a two-block-long composite with its z
+    centre half a block away): the pivot mismatch leaks through the display's pitch as a vertical offset - a
+    merely OVERHANGING but on-pivot model (the calibrated sensor's crystal) leaks nothing and keeps its natural
+    height;
+  - content whose own gui display lifts it vertically (heavy_core raises its floor-sitting 8px cube to the tile
+    centre): vanilla itself centres it in the slot, so the box centres it the same way.
+  For a cube-filling block the horizontal offset is ~0, so it is untouched.
 
 **The flat (2D) path** (tools, the shield, flat blocks like saplings). Drawn with its GUI model, its own display
 transform dropped to `NO_TRANSFORM` (a flat sprite's GUI transform has no rotation, so dropping it keeps the
@@ -455,12 +502,26 @@ orientation but removes the positioning translation that would otherwise anchor 
 box's real centre and scaled: 0.5 of the box, 0.4 in third person, with a small upward nudge in first person (a flat
 sprite otherwise sits a touch low and the wider ones, e.g. a sword or trident, clip the box edges). `NO_TRANSFORM`
 itself still applies a `translate(-0.5)` inside `ItemTransform.apply`, compensated in the centring maths.
-- Concession - slot lighting. In the GUI the lighting entry (3D vs flat) is chosen ONCE per item render state, from the
-  FIRST layer - the box, a 3D block (`GuiItemAtlas` reads `usesBlockLight`) - so a flat sprite composed into it inherits
-  the box's 3D diffuse and looks a touch DIMMER than its normal inventory icon. Its own flat lighting would need a
-  separate render state, but a separate GUI item has its own depth and could not be HALF inside the box (in front of
-  one wall and behind another): depth and lighting are coupled per render state in the GUI atlas. The
-  dim-but-correctly-occluded layer is the accepted trade-off; held/world lighting is already correct.
+- In-box lighting (reworked in 1.2.3; this replaces the former "dimmer flat content" concession, which is gone).
+  In the GUI the lighting rig (3D vs flat) is chosen ONCE per item render state, from the FIRST layer - the box, a
+  3D model - so the composite is lit with the ITEMS_3D rig while flat-reporting content (2D sprites, and flat-lit
+  3D geometry: the shield, banners, calibrated_sculk_sensor, decorated_pot) renders standalone under ITEMS_FLAT.
+  Instead of accepting the resulting dimness, the content's lighting NORMALS are corrected at the composition:
+  - `LayerRenderStateContentMixin` snapshots the pose's normal matrix before vanilla folds a content layer's
+    localTransform in, and restores it composed with only that transform's DIRECTION part (columns normalized:
+    rotation and mirror kept, scale stripped). This keeps the in-box shrink out of the shading - on the NeoForge
+    render path the folded scale made 3D blocks shade as if unlit (fabric was spared by Indigo redrawing item
+    quads) - while preserving a model's own baked mirror: vanilla builds the shield and banner entity models
+    Y-down and mirrors them through their item JSON transformation, which participates in their standalone
+    lighting.
+  - Flat-reporting content additionally gets the exact ITEMS_FLAT -> ITEMS_3D rig correction on its normals: both
+    rigs are orthogonal transforms of the same two-light base, so a single rotation maps the whole geometry's
+    flat-lit response onto the 3D rig. The correction is DERIVED AT RUNTIME from vanilla's own rig values
+    (`LightingRigCaptureMixin` captures the transformed light directions at `Lighting.updateBuffer`, the funnel
+    every rig update goes through; `GuiLightRigs` rebuilds the rotation from the captured pairs), so a Minecraft
+    update that re-tunes the rig angles is followed automatically - the one RE-VERIFY spot is structural
+    (`updateBuffer`'s signature per version), not numeric.
+  Routing is the model's own `usesBlockLight` report in the GUI context; held/world lighting was already correct.
 
 **Nested shulker content** (a shulker drawn inside the box - command-block only, as shulkers cannot be nested in
 survival). The content shulker stays closed (static, opaque) while the box opens, via two mechanisms:
@@ -584,20 +645,24 @@ duplication concern.
 ## 9. Server gamerules (feature toggles)
 
 Two server gamerules let an admin turn the mod's features on or off per world; both default TRUE, so installing the
-mod changes nothing until someone opts out. They are registered through Fabric's `GameRuleBuilder` (`ModGameRules`),
-so they are real, namespaced, vanilla gamerules - `builders-shulkers:inventory_access` and
-`builders-shulkers:pocket_build` - that appear under `/gamerule builders-shulkers:...` and in the world-options
-gamerule list.
+mod changes nothing until someone opts out. They are real, namespaced, vanilla gamerules -
+`builders-shulkers:inventory_access` and `builders-shulkers:pocket_build` - that appear under
+`/gamerule builders-shulkers:...` and in the world-options gamerule list. `ModGameRules` only holds the rule
+instances and accessors; registration is loader-specific (section 13): the Fabric entrypoint uses Fabric's
+`GameRuleBuilder` and `GameRuleEvents.changeCallback`, the NeoForge entrypoint registers through vanilla's own
+`GameRules.registerBoolean` (opened by the access transformer) during the `GAME_RULE` `RegisterEvent` and detects
+changes with a per-server-tick poller (`GameRuleChangePoller`, two map reads per tick), since vanilla 26.x exposes
+no change hook outside Fabric API.
 
 - `inventory_access`: gates opening a shulker from the inventory. Checked server-side before handling
   `OpenShulkerPayload` (`ModGameRules.inventoryAccess`); the client gates its own click interception on the synced
   cache (below) so prediction matches.
 - `pocket_build`: gates entering Pocket-Build. Checked server-side before accepting a `PocketBuildModePayload` enter,
   and client-side before the local enter.
-- Force-exit on disable. Turning a rule OFF mid-session closes the live sessions: a `GameRuleEvents.changeCallback`
-  closes any open inventory-shulker menu (`closeAndReturnToInventory`) when `inventory_access` goes off and clears
-  Pocket-Build server state when `pocket_build` goes off; the client exits Pocket-Build on receiving the synced OFF
-  value.
+- Force-exit on disable. Turning a rule OFF mid-session closes the live sessions: the rule-changed handlers
+  (`ShulkerInventory.inventoryAccessRuleChanged` / `pocketBuildRuleChanged`, wired per loader as above) close any
+  open inventory-shulker menu (`closeAndReturnToInventory`) when `inventory_access` goes off and clear Pocket-Build
+  server state when `pocket_build` goes off; the client exits Pocket-Build on receiving the synced OFF value.
 - Client sync. Custom gamerules are NOT synced to the client by vanilla, so the server sends `GameRuleStatePayload`
   (section 6) on join and on every change; it is cached in `ClientGameRuleState` and reset on disconnect. The client's
   own interception (the open-click mixin, the Pocket-Build enter) reads this cache, so client prediction never fires
@@ -625,8 +690,9 @@ server gamerules, section 9); nothing is sent to the server and a 1.2.0 client n
   animation start and the mirrored sound in `ShulkerInventoryClient` (section 4); the rest gate the in-box content
   render, the open/close sounds (`ClientShulkerSession`), and the hotbar count draw + scale
   (`GuiSelectedContentDecorationsMixin`).
-- Keybinds (`BuildersShulkersKeybinds`, registered through Fabric's `KeyMappingHelper` under a "Builder's Shulkers"
-  `KeyMapping.Category`): Open Settings (default B), the Pocket-Build modifier (default Left Control), Toggle
+- Keybinds (`BuildersShulkersKeybinds` builds the vanilla `KeyMapping`s under a "Builder's Shulkers"
+  `KeyMapping.Category`; each loader's client entrypoint registers them - Fabric through `KeyMappingHelper`,
+  NeoForge through `RegisterKeyMappingsEvent`): Open Settings (default B), the Pocket-Build modifier (default Left Control), Toggle
   Pocket-Build (UNBOUND by default), and Peek (default Left Control). The two HELD bindings (modifier, peek) are polled
   via `KeyMapping.isDown()` by `PocketBuildClient`, so an unbound one is a clean per-client off switch (false isDown
   disables modifier + right-click entry, or hides the overlay) with no extra config option. Open Settings and Toggle
@@ -680,8 +746,9 @@ compatible from the other mod's side.
 ## 12. Optional third-party integrations
 
 Integrations with other mods are OPTIONAL and isolated, all following the same soft-dependency pattern: each lives in
-its own `client.compat` class, loaded behind a `FabricLoader.isModLoaded(...)` gate (registered from
-`ShulkerInventoryClient`), so its references to the other mod are never linked when that mod is absent. The other mod is
+its own `client.compat` class, loaded behind a `FabricLoader.isModLoaded(...)` gate (registered from the Fabric
+client entrypoint - the integrated mods are Fabric mods, so the compat package is excluded from the NeoForge build
+entirely), so its references to the other mod are never linked when that mod is absent. The other mod is
 a compile-only dependency (never bundled), pinned per Minecraft version in `build.gradle.kts` and listed under
 `suggests` in fabric.mod.json. The mod runs unchanged when none of these are present.
 
@@ -702,3 +769,36 @@ plus malilib, from the Modrinth maven.
   `onSchematicPickBlockCancelled` clears the flag by reflection, but ONLY when this mod was the canceller (`cancelledBy`
   equals the listener name `builders-shulkers`), so it never disturbs another mod's cancel and becomes a no-op once
   Litematica resets the flag itself. Reported upstream; drop `resetProcessingCancelled` once fixed.
+
+## 13. The loader layer (Fabric + NeoForge, 1.2.3)
+
+The shared code never imports a loader API. Each loader's entrypoints install a minimal service layer first, then
+wire the shared logic into their loader's own registration points; everything below the entrypoints is identical
+across loaders (payloads, handlers, mixins, rendering, anti-dup).
+
+- Platform services. `Platform.setNetwork(PlatformNetwork)` (server side: `send`, `canSend`, `tracking`) and
+  `ClientPlatform` (client side: `send`, `canSend`, the config dir). Fabric backs them with
+  `ServerPlayNetworking` / `ClientPlayNetworking` / `PlayerLookup.tracking`; NeoForge with `PacketDistributor` /
+  `ClientPacketDistributor` / `connection.hasChannel`, and `tracking` reads the vanilla per-entity tracking set
+  (`ChunkMap.entityMap` / `TrackedEntity.seenBy`, opened by the access transformer - the same source Fabric API's
+  `PlayerLookup.tracking` reads through a mixin accessor).
+- Entrypoints. Fabric: `BuildersShulkersFabric` / `BuildersShulkersFabricClient` (fabric.mod.json). NeoForge:
+  `BuildersShulkersNeoForge` / `BuildersShulkersNeoForgeClient` (`@Mod`, the client one dist-gated). The NeoForge
+  mod id is `builders_shulkers` (NeoForge ids allow no hyphen); every `Identifier` namespace stays
+  `builders-shulkers`, so payloads and game rules are wire- and save-compatible across loaders - a Fabric server
+  and a NeoForge client (or any other combination) interoperate.
+- Payload registration on NeoForge: one `PayloadRegistrar` marked `optional()`, so connections without the channel
+  (vanilla clients, servers without the mod) stay allowed; senders gate on `canSend` exactly like on Fabric, so
+  the no-mod compatibility behavior is identical. Clientbound handlers are registered as LAMBDAS delegating into a
+  client-only bridge class (`NeoForgeClientPayloadHandlers`), never as method references: registration also runs
+  on the dedicated server, where a method reference would classload the client class; a lambda only loads it when
+  invoked, which happens on the client alone (validated on a real dedicated server).
+- Right-click interception on NeoForge: `InputEvent.InteractionKeyMappingTriggered`, cancelled BEFORE the client
+  resolves a target or sends any use packet. NeoForge's `PlayerInteractEvent` fires inside the use flow AFTER the
+  use packet is already on its way, so cancelling it only suppressed the local action while the server still
+  placed the block; the input-level cancel matches the Fabric use-callback behavior exactly.
+- Mixin-package hygiene (a loader-portability rule): no class that the merged mixin code references at runtime may
+  live inside a registered mixin package - such a class ends up classloaded directly, which the mixin contract
+  forbids; Fabric and the 26.x FML tolerate it, but the 1.21.x NeoForge loader enforces it with a hard
+  `IllegalClassLoadError`. This is why `PocketBuildContentKind` is a plain client class rather than an enum nested
+  in its mixin.
