@@ -58,12 +58,12 @@ jobs:
       - name: build the 26.x jars (Java 25)
         run: |
           chmod +x ./gradlew
-          JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew build
+          JAVA_HOME="$JAVA_HOME_25_X64" ./gradlew build "-Porg.gradle.java.installations.paths=$JAVA_HOME_21_X64,$JAVA_HOME_25_X64"
 
       - name: build the 1.21.x jars (Java 21)
         run: |
           chmod +x ./family-1.21.x/gradlew
-          ( cd family-1.21.x && JAVA_HOME="$JAVA_HOME_21_X64" ./gradlew build )
+          ( cd family-1.21.x && JAVA_HOME="$JAVA_HOME_21_X64" ./gradlew build "-Porg.gradle.java.installations.paths=$JAVA_HOME_21_X64,$JAVA_HOME_25_X64" )
 
       - name: collect the runnable jars
         id: jars
@@ -98,26 +98,26 @@ jobs:
           # (options.release.set) are read from each family's own files, so the footer stays correct as they evolve.
           mc_26x=$(sed -nE 's/^supported_minecraft=//p' gradle.properties)
           mc_1121=$(sed -nE 's/^supported_minecraft=//p' family-1.21.x/gradle.properties)
-          java_26x=$(grep -oE 'release\.set\([0-9]+\)' build.gradle.kts | grep -oE '[0-9]+' | head -1)
-          java_1121=$(grep -oE 'release\.set\([0-9]+\)' family-1.21.x/build.gradle.kts | grep -oE '[0-9]+' | head -1)
+          java_26x=$(grep -oE 'release\.set\([0-9]+\)' build.fabric.gradle.kts | grep -oE '[0-9]+' | head -1)
+          java_1121=$(grep -oE 'release\.set\([0-9]+\)' family-1.21.x/build.fabric.gradle.kts | grep -oE '[0-9]+' | head -1)
           if [ -z "$mc_26x" ] || [ -z "$mc_1121" ] || [ -z "$java_26x" ] || [ -z "$java_1121" ]; then
             echo "missing supported_minecraft or Java target for one of the families" >&2; exit 1
           fi
           # The version TOKENS in the jar filenames (a jar is named for its family). The reader substitutes the one from
           # the jar they downloaded into the verify command.
-          jar_mc=$(ls dist/*.jar | sed -E 's#.*-fabric-(.+)\.jar$#\1#' | sort -u | sed ':a;N;$!ba;s/\n/, /g')
+          jar_mc=$(ls dist/*.jar | sed -E 's#.*-(fabric|neoforge)-(.+)\.jar$#\2#' | sort -u | sed ':a;N;$!ba;s/\n/, /g')
           notes="$RUNNER_TEMP/notes.md"
           # Changelog body for this version: the lines between "### <version>" and its "** **" separator in README.md.
           # The $(...) capture strips trailing blank lines, so the footer always follows after exactly one blank line.
           body=$(awk -v hdr="### $version" '$0==hdr{c=1;next} c&&$0=="** **"{exit} c{print}' README.md)
           {
             printf '%s\n\n' "$body"
-            printf 'Requires Fabric Loader and Fabric API. Download the jar for your Minecraft version and put it with Fabric API in your `mods` folder:\n'
+            printf 'Download the jar for your loader and your Minecraft version, then put it in your `mods` folder. Fabric jars need Fabric Loader and Fabric API (in `mods` too); NeoForge jars need NeoForge only.\n'
             printf -- '- Minecraft %s: Java %s.\n' "$mc_26x" "$java_26x"
             printf -- '- Minecraft %s: Java %s.\n\n' "$mc_1121" "$java_1121"
-            printf 'Each jar is built on GitHub Actions from this release and carries a signed SLSA build-provenance attestation. Verify the jar you downloaded (`<mc_version>` is the version in its filename, one of: %s):\n' "$jar_mc"
+            printf 'Each jar is built on GitHub Actions from this release and carries a signed SLSA build-provenance attestation. Verify the jar you downloaded (`<loader>` is fabric or neoforge, `<mc_version>` one of: %s):\n' "$jar_mc"
             printf '```\n'
-            printf 'gh attestation verify builders-shulkers-%s-fabric-<mc_version>.jar --repo Moncef-dev/builders-shulkers\n' "$version"
+            printf 'gh attestation verify builders-shulkers-%s-<loader>-<mc_version>.jar --repo Moncef-dev/builders-shulkers\n' "$version"
             printf '```\n'
           } > "$notes"
           echo "----- composed notes -----"; cat "$notes"

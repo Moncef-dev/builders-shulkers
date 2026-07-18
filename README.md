@@ -36,11 +36,11 @@ Everything is handled by the server, so your items can never be duplicated.
 ## Versions
 
 ### 1.2.3
-**NeoForge support.** Builder's Shulkers now runs on NeoForge as well as Fabric, on every supported Minecraft version. Both loaders behave identically and play together on the same server.
+**NeoForge support.** Builder's Shulkers now runs on NeoForge as well as Fabric, on every supported Minecraft version. Both loaders behave identically and can play together on the same server.
 
-**Rendering fixes inside the box.** Fixed the lighting of items and blocks rendered inside a shulker box, and fixed position and orientation issues for that content in the inventory and in hand.
+**Rendering fixes inside the box.** Fixed the lighting of 2D items and some blocks when rendered inside a shulker box, and fixed some position and orientation issues.
 
-**Snappier Pocket-Build.** The lid now starts opening the instant you click.
+The Pocket-Build opening and closing is now more reactive.
 
 ** **
 
