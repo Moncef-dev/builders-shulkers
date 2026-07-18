@@ -2,7 +2,7 @@ plugins {
     id("dev.kikugie.stonecutter")
 }
 
-stonecutter active "1.21.11" /* [SC] DO NOT EDIT */
+stonecutter active "1.21.11-fabric" /* [SC] DO NOT EDIT */
 
 // The source is kept in its 1.21.11 form. 1.21.10 differs from 1.21.11 by two pure class relocations (handled by the
 // string swaps below) plus a structural game-rule API change (handled inline in ModGameRules / ShulkerInventory):

@@ -49,6 +49,12 @@ loom {
         }
     }
 
+    // Loader-specific code lives in subpackages of the SHARED source tree (Stonecutter only versions the
+    // conventional source-set directories, so separate per-loader dirs would be silently ignored); each
+    // loader's buildscript excludes the other loader's packages at the source-set level.
+    sourceSets["main"].java.exclude("**/shulkerinventory/neoforge/**")
+    sourceSets["client"].java.exclude("**/shulkerinventory/neoforge/**")
+
     // Dev convenience: named client runs with fixed usernames for local multiplayer testing against runServer.
     runs {
         create("clientAlice") {
@@ -85,6 +91,8 @@ tasks.processResources {
     filesMatching("fabric.mod.json") {
         expand(props)
     }
+    // NeoForge-only resources (shared resource tree, same reason as the source-set excludes above).
+    exclude("META-INF/neoforge.mods.toml", "META-INF/accesstransformer.cfg")
 }
 
 // MC 1.21.11 runs on Java 21 (its classes are Java 21 bytecode), so we target 21. Compiling with --release 21 on
