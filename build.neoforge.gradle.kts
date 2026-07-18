@@ -7,16 +7,20 @@ plugins {
 
 val minecraftVersion = stonecutter.current.version
 
-// Jar filename label. Unlike the fabric jar (whose 26.1.2 build is labeled 26.1.x because it was verified against
-// the whole 26.1 patch family), the neoforge jar is labeled with its exact Minecraft version: stable NeoForge only
-// exists for 26.1.2 (26.1.0/26.1.1 never left beta), so a wider claim would be untested.
-val jarMcLabel = minecraftVersion
+// Jar filename label, mirroring the fabric jar's coverage: the 26.1.2 build is labeled 26.1.x and its dependency
+// range accepts the whole 26.1 NeoForge family - stable NeoForge only exists for 26.1.2, but 26.1.0/26.1.1 have
+// beta NeoForge builds players do run, and the mod classes were verified byte-compatible across the 26.1 patch
+// family (same verification as the fabric jar).
+val jarMcLabel = when (minecraftVersion) {
+    "26.1.2" -> "26.1.x"
+    else -> minecraftVersion
+}
 
 // Per-version pins, keyed on the active Minecraft version: [NeoForge version, NeoForge dependency range].
 // NeoForge versions embed the Minecraft version as their first three components (26.1.2.80 = MC 26.1.2 build 80).
 // 26.1.2.80 is the latest stable; 26.2.0.15-beta is the latest for MC 26.2 (still beta upstream).
 val (neoForgeVersion, neoForgeDep) = when (minecraftVersion) {
-    "26.1.2" -> listOf("26.1.2.80", "[26.1.2,26.2)")
+    "26.1.2" -> listOf("26.1.2.80", "[26.1,26.2)")
     "26.2" -> listOf("26.2.0.15-beta", "[26.2,26.3)")
     else -> error("Unconfigured Minecraft version: $minecraftVersion")
 }
