@@ -9,16 +9,9 @@ public interface PocketBuildContentLayer {
 
 	boolean shulkerInventory$isPocketBuildContent();
 
-	// GUI lighting treatment for a content layer whose model reports FLAT lighting (applied by
-	// LayerRenderStateContentMixin). Set at composition time, GUI context only.
-	enum FlatGuiLighting {
-		// Not flat-reporting content (or not the GUI context): plain pre-localTransform normals.
-		NONE,
-		// A true 2D sprite (sword, tool, sapling): block-top brightness treatment.
-		SPRITE,
-		// Flat-lit 3D geometry (shield, banners, calibrated_sculk_sensor, decorated_pot): rig-to-rig correction.
-		FLAT_LIT_3D
-	}
-
-	void shulkerInventory$setPocketBuildFlatGuiLighting(FlatGuiLighting mode);
+	// Marks a content layer whose model reports FLAT lighting, composed into the GUI slot: it renders standalone
+	// under the ITEMS_FLAT light rig, but the slot lights the whole composite once with the box's ITEMS_3D rig,
+	// so LayerRenderStateContentMixin applies the exact FLAT -> 3D rig correction to its lighting normals. Set at
+	// composition time, GUI context only.
+	void shulkerInventory$setPocketBuildFlatGuiLit(boolean value);
 }
