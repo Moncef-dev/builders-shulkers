@@ -1,8 +1,8 @@
 # Builder's Shulkers
 
-A Fabric mod for Minecraft that lets you use a shulker box's contents without ever placing it
-down: open and rearrange it straight from your inventory like a chest, and place or use its
-items from your hotbar while you build.
+A Minecraft mod, for Fabric and NeoForge, that lets you use a shulker box's contents without
+ever placing it down: open and rearrange it straight from your inventory like a chest, and
+place or use its items from your hotbar while you build.
 
 ## Links
 - Youtube showcase: https://www.youtube.com/watch?v=VknrkiXw_Fk
@@ -35,13 +35,22 @@ Everything is handled by the server, so your items can never be duplicated.
 
 ## Versions
 
+### 1.2.3
+**NeoForge support.** Builder's Shulkers now runs on NeoForge as well as Fabric, on every supported Minecraft version. Both loaders behave identically and can play together on the same server.
+
+**Rendering fixes inside the box.** Fixed the lighting of 2D items and some blocks when rendered inside a shulker box, and fixed some position and orientation issues.
+
+The Pocket-Build opening and closing is now more reactive.
+
+** **
+
 ### 1.2.2
 Builder's Shulkers now also runs on the Minecraft 1.21.x line: 1.21.9, 1.21.10, and 1.21.11, alongside 26.x. Plus a few visual fixes: the held shulker no longer jitters when its contents change, the lid no longer jumps slightly as it starts to open, and the "disappear" lid effect now waits for the lid to finish opening before disappearing, instead of vanishing instantly.
 
 ** **
 
 ### 1.2.1
-**Improvement of ItemSwapper compatibility.** Swapping the shulker you are holding while in Pocket-Build now leaves the mode cleanly, instead of carrying Pocket-Build over to the new shulker.
+**Improvement of ItemSwapper compatibility.** Swapping the shulker you are holding while in Pocket-Build now leaves the mode cleanly.
 
 ** **
 

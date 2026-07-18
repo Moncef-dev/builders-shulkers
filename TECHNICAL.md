@@ -1,8 +1,14 @@
-# Builder's Shulkers - Technical Documentation (v1.2.2)
+# Builder's Shulkers - Technical Documentation (v1.2.3)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.2.2. This is the 1.21.x branch
+their scope, and known risks. Describes the state as shipped in v1.2.3. This is the 1.21.x branch
 (Minecraft 1.21.9 to 1.21.11); the 26.x line lives on its own branch (see Environment).
+
+1.2.3 note: this branch now shares the 26.x branch's multi-loader architecture (Fabric + NeoForge) and its
+reworked in-box render pipeline (lighting correction, placement rules, held orientation, the Pocket-Build open
+association bridge). Those are documented in detail in the 26.x branch's TECHNICAL.md (its build section and
+sections 3, 8 and 13); this file keeps the specifics of the 1.21.x line (the obfuscated toolchain, the per-version
+game-rule fork, the per-version access transformers, the localTransform recreated as a mixin field).
 
 ## Environment
 
