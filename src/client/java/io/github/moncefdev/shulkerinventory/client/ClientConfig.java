@@ -3,7 +3,7 @@ package io.github.moncefdev.shulkerinventory.client;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.github.moncefdev.shulkerinventory.ShulkerInventory;
-import net.fabricmc.loader.api.FabricLoader;
+import io.github.moncefdev.shulkerinventory.client.platform.ClientPlatform;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,8 +19,13 @@ public final class ClientConfig {
 	public enum LidEffect { NONE, DISSOLVE, DISAPPEAR }
 
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("builders-shulkers.json");
 	private static ClientConfig instance = new ClientConfig();
+
+	// Resolved lazily: the config directory comes from the loader (via ClientPlatform), which the entrypoint
+	// installs before calling load().
+	private static Path path() {
+		return ClientPlatform.configDir().resolve("builders-shulkers.json");
+	}
 
 	public boolean inventoryAnimation = true;
 	public boolean pocketBuildAnimation = true;
@@ -41,12 +46,12 @@ public final class ClientConfig {
 	}
 
 	public static void load() {
-		if (!Files.exists(PATH)) {
+		if (!Files.exists(path())) {
 			save();
 			return;
 		}
 		try {
-			ClientConfig loaded = GSON.fromJson(Files.readString(PATH), ClientConfig.class);
+			ClientConfig loaded = GSON.fromJson(Files.readString(path()), ClientConfig.class);
 			if (loaded != null) {
 				instance = loaded;
 			}
@@ -57,7 +62,7 @@ public final class ClientConfig {
 
 	public static void save() {
 		try {
-			Files.writeString(PATH, GSON.toJson(instance));
+			Files.writeString(path(), GSON.toJson(instance));
 		} catch (IOException e) {
 			ShulkerInventory.LOGGER.warn("Could not save Builder's Shulkers config", e);
 		}

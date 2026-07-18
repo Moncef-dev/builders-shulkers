@@ -1,8 +1,8 @@
 package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import io.github.moncefdev.shulkerinventory.client.PocketBuildMode;
+import io.github.moncefdev.shulkerinventory.client.platform.ClientPlatform;
 import io.github.moncefdev.shulkerinventory.network.PocketBuildSelectPayload;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import org.spongepowered.asm.mixin.Mixin;
@@ -30,8 +30,8 @@ public abstract class MouseHandlerScrollMixin {
 			PocketBuildMode.cycle(amount > 0.0 ? -1 : 1, mc.player.getMainHandItem());
 			// Sync the new selection to the server so a placement (a normal vanilla use packet) swaps in the right
 			// content.
-			if (ClientPlayNetworking.canSend(PocketBuildSelectPayload.TYPE)) {
-				ClientPlayNetworking.send(new PocketBuildSelectPayload(PocketBuildMode.selectedContentSlot()));
+			if (ClientPlatform.network().canSend(PocketBuildSelectPayload.TYPE)) {
+				ClientPlatform.network().send(new PocketBuildSelectPayload(PocketBuildMode.selectedContentSlot()));
 			}
 		}
 		ci.cancel();

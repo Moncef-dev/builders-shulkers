@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
 import io.github.moncefdev.shulkerinventory.client.ClientConfig;
 import io.github.moncefdev.shulkerinventory.client.ClientShulkerSession;
+import io.github.moncefdev.shulkerinventory.client.PocketBuildContentKind;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildContentLayer;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildContentRender;
 import java.util.Map;
@@ -62,28 +63,6 @@ public abstract class PocketBuildContentLayerMixin {
 	// The content's local space spans [0,1] per block unit and fills the box at scale 1, so the box centre is 0.5.
 	private static final float BOX_CENTER = 0.5f;
 
-	// How the selected content renders, which picks its in-box composition path. Classified by how it DRAWS, not by item
-	// type (a sapling is a BlockItem yet flat). See shulkerInventory$classify and PocketBuildContentRender.
-	private enum ContentKind {
-		// A flat sprite (tools, the shield, flat blocks like saplings): drawn as a layer, its own transform dropped and
-		// re-centred + scaled on the box's real geometry.
-		FLAT,
-		// Any 3D block (a plain block, a custom-held block, a special block-entity renderer, or a natively iso-rotated
-		// banner / shield / calibrated_sculk_sensor): the unified 3D path (GUI display + box-following delta + 0.6 shrink).
-		BLOCK,
-		// An oversized special block whose inventory iso normally comes from the oversized PIP our composition bypasses
-		// (decorated_pot): the 3D path AND the standard block iso substituted onto each layer.
-		BLOCK_OVERSIZED;
-
-		boolean isFlat() {
-			return this == FLAT;
-		}
-
-		boolean needsBlockIso() {
-			return this == BLOCK_OVERSIZED;
-		}
-	}
-
 	@Inject(method = "appendItemLayers", at = @At("TAIL"))
 	private void shulkerInventory$appendPocketBuildContent(ItemStackRenderState output, ItemStack item,
 			ItemDisplayContext displayContext, Level level, ItemOwner owner, int seed, CallbackInfo ci) {
@@ -112,7 +91,7 @@ public abstract class PocketBuildContentLayerMixin {
 		if (content.isEmpty()) {
 			return;
 		}
-		ContentKind kind = shulkerInventory$classify(content, level);
+		PocketBuildContentKind kind = shulkerInventory$classify(content, level);
 		// All content is appended with the GUI (inventory) display: flat sprites and 3D blocks alike. A 3D block's own
 		// per-context display can be a held-in-hand pose that reads wrong nested in the box; the GUI display is the same
 		// upright look the slot shows, and the block branch then turns it WITH the box via the delta. Flat content drops
@@ -145,19 +124,19 @@ public abstract class PocketBuildContentLayerMixin {
 	//    block with front gui_light, a banner, a shield's display). They take the unified 3D path AS-IS so they follow
 	//    the box instead of being drawn flat (BLOCK). This also pulls shield + banners onto the 3D path.
 	// Every non-flat item is a 3D block and takes the unified block path (BLOCK).
-	private static ContentKind shulkerInventory$classify(ItemStack content, Level level) {
+	private static PocketBuildContentKind shulkerInventory$classify(ItemStack content, Level level) {
 		boolean flatReport = PocketBuildContentRender.isFlat(content, level);
 		if (!flatReport) {
-			return ContentKind.BLOCK;
+			return PocketBuildContentKind.BLOCK;
 		}
 		boolean faceOn = PocketBuildContentRender.isFaceOnGui(content, level);
 		if (!faceOn) {
-			return ContentKind.BLOCK;
+			return PocketBuildContentKind.BLOCK;
 		}
 		if (PocketBuildContentRender.isSpecial(content, level) && content.getItem() instanceof BlockItem) {
-			return ContentKind.BLOCK_OVERSIZED;
+			return PocketBuildContentKind.BLOCK_OVERSIZED;
 		}
-		return ContentKind.FLAT;
+		return PocketBuildContentKind.FLAT;
 	}
 
 	// A held context: the box is posed in hand (first or third person). The orientation-follow and the height-centring
@@ -222,7 +201,7 @@ public abstract class PocketBuildContentLayerMixin {
 	// in order, each measuring the result of the earlier ones: iso substitution (oversized only), box-following
 	// orientation, box size factor, the 0.6 shrink, then centring.
 	private static void shulkerInventory$applyBlockContent(ItemStackRenderState.LayerRenderState[] layers, int before,
-			int after, ItemDisplayContext displayContext, ItemStack item, Level level, ContentKind kind) {
+			int after, ItemDisplayContext displayContext, ItemStack item, Level level, PocketBuildContentKind kind) {
 		// Box GUI display reference (rotation + scale), probed deterministically from the box's own model, cached.
 		float[] boxRef = PocketBuildContentRender.boxGuiRef(item, level);
 		// The DROPPED item entity (GROUND) shows the box in a posed, non-GUI display just like the hand does, so the

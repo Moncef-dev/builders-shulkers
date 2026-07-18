@@ -92,7 +92,7 @@ tasks.processResources {
         expand(props)
     }
     // NeoForge-only resources (shared resource tree, same reason as the source-set excludes above).
-    exclude("META-INF/neoforge.mods.toml", "META-INF/accesstransformer.cfg")
+    exclude("META-INF/neoforge.mods.toml", "META-INF/accesstransformer_1_21_11.cfg", "META-INF/accesstransformer_1_21_10.cfg")
 }
 
 // MC 1.21.11 runs on Java 21 (its classes are Java 21 bytecode), so we target 21. Compiling with --release 21 on

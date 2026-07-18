@@ -27,8 +27,8 @@ stonecutter {
         fun target(mc: String, vararg loaders: String) {
             for (loader in loaders) version("$mc-$loader", mc).buildscript("build.$loader.gradle.kts")
         }
-        target("1.21.11", "fabric")
-        target("1.21.10", "fabric")
+        target("1.21.11", "fabric", "neoforge")
+        target("1.21.10", "fabric", "neoforge")
         // The source is kept in its 1.21.11 form (the newest target); this is the node the tree is reset to
         // before a commit.
         vcsVersion = "1.21.11-fabric"
