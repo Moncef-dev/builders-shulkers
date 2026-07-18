@@ -15,6 +15,7 @@
 		"ItemStackRenderStateAccessor",
 		"LayerRenderStateAccessor",
 		"LayerRenderStateContentMixin",
+		"LightingRigCaptureMixin",
 		"PocketBuildContentLayerMixin",
 		"ContainerScreenCloseMixin",
 		"ShulkerAnimatedMixin",

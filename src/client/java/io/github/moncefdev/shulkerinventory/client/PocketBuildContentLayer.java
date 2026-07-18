@@ -19,4 +19,10 @@ public interface PocketBuildContentLayer {
 	// The layer's local transform, or null if none was set (treated as identity). Null is the vanilla default, so reading
 	// it on a box's own (untouched) layer returns null - callers must treat that as identity.
 	org.joml.Matrix4f shulkerInventory$getLocalTransform();
+
+	// Marks a content layer whose model reports FLAT lighting, composed into the GUI slot: it renders standalone
+	// under the ITEMS_FLAT light rig, but the slot lights the whole composite once with the box's ITEMS_3D rig,
+	// so LayerRenderStateContentMixin applies the exact FLAT -> 3D rig correction to its lighting normals. Set at
+	// composition time, GUI context only.
+	void shulkerInventory$setPocketBuildFlatGuiLit(boolean value);
 }
