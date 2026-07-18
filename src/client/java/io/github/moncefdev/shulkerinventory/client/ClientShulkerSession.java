@@ -177,10 +177,15 @@ public final class ClientShulkerSession {
 		anim.status = AnimationStatus.OPENING;
 		anim.progress = resume;
 		anim.progressOld = resume;
-		// Local open: hold the OPENING progress until the render first follows it (see AnimationState.rendered), so the
-		// lid starts lifting from 0 instead of bumping to wherever it ticked during the open round-trip.
+		// Local open: for the SCREEN mode, hold the OPENING progress until the render first follows it (see
+		// AnimationState.rendered), so the lid starts lifting from 0 instead of bumping to wherever it ticked
+		// during the menu round-trip. The Pocket-Build mode needs no hold: its immediate-association bridge (see
+		// getAnimationIdForStack) links the render on the very next frame, and holding here cost the open exactly
+		// one tick per cycle that the close never lost - rapid open/close clicking visibly ratcheted the lid
+		// toward closed. So it starts already-rendered and advances from the click's own tick, symmetric with the
+		// close.
 		anim.local = true;
-		anim.rendered = false;
+		anim.rendered = !armScreen;
 		if (armScreen) {
 			pendingIdForScreen = newId;
 			pendingIdTtl = PENDING_OPEN_GRACE_TICKS;
@@ -313,6 +318,27 @@ public final class ClientShulkerSession {
 	}
 
 	public static Long getAnimationIdForStack(ItemStack stack) {
+		return ShulkerAnimationMarker.get(stack);
+	}
+
+	// Resolver for HELD-item render paths only (first person, and the local player's own content append in a hand
+	// context): the marker, or the Pocket-Build immediate-association bridge. The client creates the open
+	// animation at the click, but the marker that links a stack to it is written by the SERVER and only lands
+	// after the payload round-trip - so the held lid sat still for that window, and rapid open/close cycling
+	// ratcheted the lid toward closed (a stale marker from the previous session even kept the render on the OLD
+	// closing animation). Until the identity guard confirms the mode's marker landed, a stack that matches the
+	// mode's box (full equality against a marker-stripped snapshot) held by the LOCAL PLAYER resolves to the
+	// mode's own animation id, overriding a stale marker. The holder gate is what makes the equality match safe:
+	// every OTHER render context (GUI slots, item entities, other players' hands) uses the plain marker path
+	// above, so equal-content boxes - every empty shulker of a colour is bit-identical - never twitch in the
+	// hotbar or on other players. Strictly read-only (no stack is ever mutated mid-session - the 1.0.7 ghost
+	// lesson); a mismatch degrades to the old sub-tick latency, never to a wrong association.
+	public static Long resolveHeldAnimationId(ItemStack stack, Object holder) {
+		if (PocketBuildMode.isActive() && !PocketBuildClient.isHeldMarkerConfirmed()
+				&& holder == net.minecraft.client.Minecraft.getInstance().player
+				&& PocketBuildMode.matchesModeBox(stack)) {
+			return PocketBuildMode.animationId();
+		}
 		return ShulkerAnimationMarker.get(stack);
 	}
 

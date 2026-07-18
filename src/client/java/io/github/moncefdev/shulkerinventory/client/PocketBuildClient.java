@@ -182,6 +182,12 @@ public final class PocketBuildClient {
 		ClientShulkerSession.playOwnSound(true);
 	}
 
+	// Whether the server's marker for the CURRENT mode has synced back onto the held stack (the identity guard
+	// tracks it): the render's immediate-association bridge runs only until then.
+	public static boolean isHeldMarkerConfirmed() {
+		return heldMarkerConfirmed;
+	}
+
 	public static void exitMode() {
 		long id = PocketBuildMode.animationId();
 		int slot = PocketBuildMode.sourceHotbarSlot();
