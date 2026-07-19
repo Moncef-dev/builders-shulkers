@@ -19,8 +19,8 @@ val jarMcLabel = when (minecraftVersion) {
 // ServerGamePacketListenerImpl, whose handleContainerClose signature is unchanged), so one jar covers the whole 26.1.x
 // family. Each build still COMPILES against its exact minecraftVersion; the range only widens the runtime metadata.
 val (loaderVersion, fabricApiVersion, litematicaVersion, malilibVersion, minecraftDep) = when (minecraftVersion) {
-    "26.1.2" -> listOf("0.19.2", "0.150.0+26.1.2", "0.27.6", "0.28.6", "~26.1")
-    "26.2" -> listOf("0.19.3", "0.152.1+26.2", "0.28.0", "0.29.0", "~26.2")
+    "26.1.2" -> listOf("0.19.2", "0.150.0+26.1.2", "0.27.10", "0.28.6", "~26.1")
+    "26.2" -> listOf("0.19.3", "0.152.1+26.2", "0.28.4", "0.29.0", "~26.2")
     else -> error("Unconfigured Minecraft version: $minecraftVersion")
 }
 
