@@ -73,7 +73,9 @@ public final class PocketBuildMode {
 	// step and lands on the START of the next/previous run - a shorter, more memorable palette for blind building.
 	// Backward deliberately lands on the FIRST stack of the previous run, not the last one reached, so forward then
 	// backward returns where you were. Empty slots never split a run; identical items separated by a different item
-	// are distinct runs. With a single distinct item the selection snaps to its first stack; with none it clears.
+	// are distinct runs, EXCEPT across the end of the box: the last and first slots are adjacent to a wrapping scroll,
+	// so the same item at both ends is one run starting at its trailing stack. With a single distinct item the
+	// selection snaps to its first stack; with none it clears.
 	// After a placement empties the selected slot, the selection sits "before" the rebuilt run, so the next forward
 	// picks the nearest remaining stack and backward wraps to the last run.
 	public static void cycle(int direction, ItemStack shulker) {
@@ -97,19 +99,32 @@ public final class PocketBuildMode {
 			selectedContentSlot = -1;
 			return;
 		}
+		// Runs are CYCLIC, because the scroll itself wraps: when the last and first stacks hold the same item, the
+		// trailing and leading runs are one single run that happens to straddle slot 0, and its start is the trailing
+		// one. Without this the two ends count as separate runs, so scrolling across the boundary steps onto the same
+		// item again instead of the next DIFFERENT one. Dropping the leading run leaves the wrapped run as the last
+		// one; a wrap needs a different item in between, so at least two runs always survive.
+		boolean wrapped = runCount > 1
+				&& ItemStack.isSameItemSameComponents(items.get(runFirst[0]), items.get(lastNonEmpty));
+		int firstRun = wrapped ? 1 : 0;
+		runCount -= firstRun;
 		if (runCount == 1) {
-			selectedContentSlot = runFirst[0];
+			selectedContentSlot = runFirst[firstRun];
 			return;
 		}
 		// The run the selection currently sits in: the last run starting at or before the selected slot, or none
 		// (-1) when the selection is before the first run (no selection, or a just-emptied slot).
 		int curRun = -1;
 		for (int k = 0; k < runCount; k++) {
-			if (runFirst[k] <= selectedContentSlot) {
+			if (runFirst[firstRun + k] <= selectedContentSlot) {
 				curRun = k;
 			} else {
 				break;
 			}
+		}
+		// A selection in the leading slots sits in the wrapped run, whose start is past it rather than before it.
+		if (curRun < 0 && wrapped && selectedContentSlot >= 0) {
+			curRun = runCount - 1;
 		}
 		int target;
 		if (direction >= 0) {
@@ -117,7 +132,7 @@ public final class PocketBuildMode {
 		} else {
 			target = curRun <= 0 ? runCount - 1 : curRun - 1; // before-first or first run -> wrap to last
 		}
-		selectedContentSlot = runFirst[target];
+		selectedContentSlot = runFirst[firstRun + target];
 	}
 
 	// A snapshot of the held shulker's content stacks (for the peek overlay rendering).
