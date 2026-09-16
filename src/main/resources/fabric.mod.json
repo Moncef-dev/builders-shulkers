@@ -27,6 +27,10 @@
 		{
 			"config": "builders-shulkers.client.mixins.json",
 			"environment": "client"
+		},
+		{
+			"config": "builders-shulkers.litematica.mixins.json",
+			"environment": "client"
 		}
 	],
 	"depends": {
@@ -34,5 +38,8 @@
 		"minecraft": "${minecraft_dep}",
 		"java": ">=21",
 		"fabric-api": "*"
+	},
+	"suggests": {
+		"litematica": "*"
 	}
 }

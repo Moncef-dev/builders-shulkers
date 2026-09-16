@@ -15,6 +15,20 @@ import java.util.function.Supplier;
 public final class PocketBuildClientSwap {
 	private PocketBuildClientSwap() {}
 
+	// The mode box while it is swapped OUT of the hand. Code that runs INSIDE the vanilla flow can then still find
+	// it (PocketBuildClient.currentBox): Litematica's easy place hooks itself into useItemOn, so it can run at a
+	// moment when the hand holds the selected content rather than the box. EMPTY outside a swap; the previous value
+	// is saved and restored around the body rather than cleared, so a nested flow cannot lose the outer box.
+	private static ItemStack swappedOutBox = ItemStack.EMPTY;
+
+	public static ItemStack swappedOutBox() {
+		return swappedOutBox;
+	}
+
+	public static boolean isSwapping() {
+		return !swappedOutBox.isEmpty();
+	}
+
 	public static InteractionResult runPredicted(Player player, ItemStack shulker, Supplier<InteractionResult> body) {
 		ItemStack content = PocketBuildMode.selectedStack(shulker);
 		// Swap the content in only when it is actually usable (a placeable block). For an empty or non-usable selection,
@@ -25,11 +39,14 @@ public final class PocketBuildClientSwap {
 		// would not open. Mirrors the server gate (PocketBuildContentSwap) so prediction matches authority.
 		boolean swap = !content.isEmpty() && PocketBuildRules.isUsable(content);
 		int handSlot = player.getInventory().getSelectedSlot();
-		player.getInventory().setItem(handSlot, swap ? content.copy() : ItemStack.EMPTY);
+		ItemStack outerBox = swappedOutBox;
+		swappedOutBox = shulker;
 		try {
+			player.getInventory().setItem(handSlot, swap ? content.copy() : ItemStack.EMPTY);
 			return body.get();
 		} finally {
 			player.getInventory().setItem(handSlot, shulker);
+			swappedOutBox = outerBox;
 		}
 	}
 }

@@ -1,0 +1,16 @@
+{
+	"required": false,
+	"package": "io.github.moncefdev.shulkerinventory.client.compat.mixin",
+	"plugin": "io.github.moncefdev.shulkerinventory.client.compat.LitematicaMixinPlugin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"EasyPlaceUtilsMixin",
+		"WorldUtilsEasyPlaceMixin"
+	],
+	"injectors": {
+		"defaultRequire": 0
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

@@ -34,12 +34,13 @@ base {
 
 // Mirror the fabric build's client/common source-set split (Stonecutter versions sources per CONVENTIONAL
 // source-set directory, so a real "client" set is what makes it pick up src/client). Loader-specific code lives
-// in loader subpackages of the shared tree; the fabric packages are excluded at the source-set level.
+// in loader subpackages of the shared tree; the fabric packages (and the fabric-only Litematica interop under
+// client/compat) are excluded at the source-set level.
 sourceSets.main {
     java.exclude("**/shulkerinventory/fabric/**")
 }
 val clientSourceSet = sourceSets.create("client") {
-    java.exclude("**/shulkerinventory/client/fabric/**")
+    java.exclude("**/shulkerinventory/client/fabric/**", "**/shulkerinventory/client/compat/**")
     compileClasspath += sourceSets.main.get().output
     runtimeClasspath += sourceSets.main.get().output
 }
@@ -117,7 +118,11 @@ java {
 
 tasks.jar {
     archiveClassifier.set("neoforge-$jarMcLabel")
-    from(clientSourceSet.output)
+    // The Litematica interop config names classes this build excludes at the source-set level
+    // (Litematica is a Fabric mod), so its mixin config has nothing to apply and must not ship either.
+    from(clientSourceSet.output) {
+        exclude("builders-shulkers.litematica.mixins.json")
+    }
     from("LICENSE") {
         rename { "${it}_${rootProject.name}" }
     }

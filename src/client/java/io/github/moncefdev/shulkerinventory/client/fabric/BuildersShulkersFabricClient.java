@@ -3,6 +3,7 @@ package io.github.moncefdev.shulkerinventory.client.fabric;
 import io.github.moncefdev.shulkerinventory.client.BuildersShulkersKeybinds;
 import io.github.moncefdev.shulkerinventory.client.ClientConfig;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildClient;
+import io.github.moncefdev.shulkerinventory.client.compat.LitematicaPickBlockCompat;
 import io.github.moncefdev.shulkerinventory.client.PocketBuildOverlay;
 import io.github.moncefdev.shulkerinventory.client.ShulkerInventoryClient;
 import io.github.moncefdev.shulkerinventory.client.platform.ClientPlatform;
@@ -88,6 +89,15 @@ public final class BuildersShulkersFabricClient implements ClientModInitializer 
 			KeyBindingHelper.registerKeyBinding(mapping);
 		}
 		ClientTickEvents.END_CLIENT_TICK.register(BuildersShulkersKeybinds::endClientTick);
+
+		// Optional Litematica interop (Litematica is a Fabric mod, so this stays in the Fabric entrypoint):
+		// middle-clicking a schematic ghost block while pocket-building selects the matching content from the held
+		// shulker instead of letting Litematica swap the shulker away. Gated on Litematica being installed, so the
+		// compat class (and its Litematica references) is only loaded then. The easy place interop next to it is
+		// mixin-based and carries its own gate (LitematicaMixinPlugin).
+		if (FabricLoader.getInstance().isModLoaded("litematica")) {
+			LitematicaPickBlockCompat.register();
+		}
 
 		ClientTickEvents.END_CLIENT_TICK.register(ShulkerInventoryClient::tickServerModCheck);
 	}
