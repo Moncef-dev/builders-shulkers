@@ -105,7 +105,11 @@ java {
 
 tasks.jar {
     archiveClassifier.set("neoforge-$jarMcLabel")
-    from(clientSourceSet.output)
+    // The Litematica interop config names classes this build excludes at the source-set level
+    // (Litematica is a Fabric mod), so its mixin config has nothing to apply and must not ship either.
+    from(clientSourceSet.output) {
+        exclude("builders-shulkers.litematica.mixins.json")
+    }
     from("LICENSE") {
         rename { "${it}_${rootProject.name}" }
     }

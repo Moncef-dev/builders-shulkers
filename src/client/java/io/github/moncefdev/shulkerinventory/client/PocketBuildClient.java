@@ -220,6 +220,19 @@ public final class PocketBuildClient {
 		}
 	}
 
+	// The Pocket-Build box as it stands right now, even while it is swapped OUT of the hand. Interop code can run
+	// from INSIDE the vanilla use flow (Litematica's easy place hooks itself into useItemOn), where the hand holds the
+	// selected content instead of the box; the content swap keeps the box aside for exactly that. EMPTY when the player
+	// is not holding a shulker at all.
+	public static ItemStack currentBox(Player player) {
+		ItemStack held = player.getMainHandItem();
+		if (ShulkerContents.isShulker(held)) {
+			return held;
+		}
+		ItemStack swappedOut = PocketBuildClientSwap.swappedOutBox();
+		return ShulkerContents.isShulker(swappedOut) ? swappedOut : ItemStack.EMPTY;
+	}
+
 	// Select the content matching `pick` inside the held shulker and sync the new selection to the server (like a
 	// scroll). Returns true if `pick` was found in the box (selection made), false otherwise. Shared by the vanilla
 	// pick handling (MultiPlayerGameModePickMixin) and the Litematica pick interop (LitematicaPickBlockCompat).
