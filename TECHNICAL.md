@@ -1,4 +1,4 @@
-# Builder's Shulkers - Technical Documentation (v1.2.3)
+# Builder's Shulkers - Technical Documentation (v1.2.4)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
 their scope, and known risks. Describes the state as shipped in v1.2.3. This is the 1.21.x branch
@@ -262,7 +262,7 @@ Client (`builders-shulkers.client.mixins.json`):
   `pocket_build`), sent on join and on every change. Custom gamerules are NOT synced to the client automatically, so
   the client caches them (`ClientGameRuleState`) to gate its own interception in step with the server (section 9).
 
-## 7. Known limitations and risks (v1.2.2)
+## 7. Known limitations and risks (v1.2.4)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -735,6 +735,14 @@ its own `client.compat` class, loaded behind a `FabricLoader.isModLoaded(...)` g
 a compile-only dependency (never bundled), pinned per Minecraft version in `build.gradle.kts` and listed under
 `suggests` in fabric.mod.json. The mod runs unchanged when none of these are present.
 
+Mapping note for this branch. 1.21.x is obfuscated, so the Litematica and malilib compile-only dependencies go
+through loom's `mod*` configurations (`modClientCompileOnly`), which remap their published intermediary jars to the
+Mojmap names the source uses. For the same reason the easy place injection points below are written WITHOUT a
+descriptor: one spelling out Minecraft types would have to be intermediary in the shipped jar and named in the dev
+run, while an owner-plus-name target is mapping-independent (each of those names is unique in its class). The compile
+pins also stop at the last Litematica and malilib pair built with Loom 1.16.3, since loom refuses a mod dependency
+built with a newer loom than the one in use; that constrains compilation only, the hooks binding by name at runtime.
+
 ### Litematica (schematic pick-block, 1.1.5)
 
 With Litematica installed, middle-clicking one of its schematic ghost blocks in Pocket-Build selects that block from the
@@ -751,4 +759,40 @@ plus malilib, from the Modrinth maven.
   return would dead-lock every later schematic pick until a game restart. Until the upstream fix ships,
   `onSchematicPickBlockCancelled` clears the flag by reflection, but ONLY when this mod was the canceller (`cancelledBy`
   equals the listener name `builders-shulkers`), so it never disturbs another mod's cancel and becomes a no-op once
-  Litematica resets the flag itself. Reported upstream; drop `resetProcessingCancelled` once fixed.
+  Litematica resets the flag itself. FIXED upstream since: `resetCancelled()` is public and
+  `WorldUtils.doSchematicWorldPickBlock` calls it as its first statement, so every schematic pick now starts from a
+  clean flag. The workaround is kept because it still covers the Litematica line the 1.21.9/1.21.10 target pins
+  (0.24.9), which predates the fix and has no `resetCancelled` at all, plus anyone still running an older build; it is
+  a no-op everywhere else.
+
+### Litematica (easy place, 1.2.4)
+
+With easy place on, Pocket-Build builds from the held box: the box answers for the material easy place needs, and the
+selection follows the schematic block by block. Without this, easy place failed on every click with "Action prevented
+by the Easy Place mode", whatever the box held.
+
+Easy place resolves the item its schematic needs, tries to put it in hand from the player INVENTORY
+(`InventoryUtils.schematicWorldPickBlock`), then checks the stack actually in hand (`EntityUtils.getUsedHandForItem`);
+a shulker box never matches, so it gets no hand back, gives up, and cancels the click. Nothing on that path can see
+the box's `container` component. The integration fixes only that item resolution, with one `@WrapOperation` per call
+site: the inventory pick is SKIPPED for the whole duration of the mode (it would otherwise move items in and out of
+the hotbar slot Pocket-Build locks, or overwrite it in creative), the Pocket-Build selection moves to the required
+item through the same `PocketBuildClient.selectContentMatching` the pick-block uses, synced to the server like a
+scroll, and the hand check then answers `MAIN_HAND`. Everything downstream is untouched, easy place going on to call
+`MultiPlayerGameMode.useItemOn`, the method the content swap already wraps (section 8), so the placement, the packet
+and the server-authoritative swap behave exactly as for a plain Pocket-Build click.
+
+- Two implementations to hook. Litematica ships BOTH a historic easy place (`WorldUtils.doEasyPlaceAction`, driven
+  from the input and tick layer) and a rewrite (`EasyPlaceUtils.handleEasyPlace`, driven from `useItemOn`), and picks
+  one at runtime from its `easyPlacePostRewrite` setting, off by default. They carry the same two call sites, so each
+  gets the same pair of hooks (`WorldUtilsEasyPlaceMixin`, `EasyPlaceUtilsMixin`) over one shared decision class
+  (`LitematicaEasyPlaceCompat`). Hooking only the rewrite silently does nothing for most players.
+- Hand claim versus the swap. The rewrite path can run INSIDE the content swap, where the hand already holds the
+  content selected when the swap started; a selection changed at that point would not reach the nested placement, so
+  the hook defers (`PocketBuildClientSwap.isSwapping`) rather than risk placing the wrong block, and the next click
+  places from the updated selection. `PocketBuildClient.currentBox` exists for the same reason: during a swap the box
+  is held aside, not in hand.
+- Fragility budget. Unlike the schematic pick-block, this path has no upstream event, so the hooks sit on internal
+  call sites of private methods. Both are declared `require = 0`, so a Litematica refactor turns the interop off
+  instead of crashing the game. Asking upstream to route this path through the existing
+  `ISchematicPickBlockSlotHandler` would let both mixins go.

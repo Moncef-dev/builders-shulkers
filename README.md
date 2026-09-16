@@ -24,6 +24,7 @@ place or use its items from your hotbar while you build.
 - Middle-click a block you already have in the box to select it straight away; if it is not in the box, middle-click takes it from your inventory as usual.
 - Right-click to place that block straight from the box - on the ground, into an item frame, and so on - while the box stays in your hand. The block rendered inside the box follows it in your hand and on the ground.
 - Pocket-Build places blocks; a non-block selection does nothing, so the box stays a pocket of building blocks.
+- With Litematica installed, schematic building draws from the box as well: middle-click a ghost block to select that material, and its easy place mode takes each block it needs straight from the box, so one shulker covers a whole build.
 - Hold Ctrl to peek at the box's full contents in an overlay above your hotbar.
 
 Everything is handled by the server, so your items can never be duplicated.
@@ -34,6 +35,15 @@ Everything is handled by the server, so your items can never be duplicated.
 - Server admins can turn the access from inventory and Pocket-Build features on or off with gamerules.
 
 ## Versions
+
+### 1.2.4
+**Minecraft 26.3 support.** Builder's Shulkers now runs on Minecraft 26.3, on Fabric and on NeoForge, alongside 26.1.x, 26.2 and the 1.21.x line.
+
+**Litematica easy place compatibility.** With easy place turned on, Pocket-Build now builds straight from the box in your hand: it takes whichever slot holds the block the schematic asks for, block by block, so one shulker works as a material palette for a whole build. Until now easy place refused to place anything while you held a box and answered "Action prevented by the Easy Place mode" on every click.
+
+Fixed the Pocket-Build scroll stopping twice on the same item when the first and last filled slot of a shulker holds that item.
+
+** **
 
 ### 1.2.3
 **NeoForge support.** Builder's Shulkers now runs on NeoForge as well as Fabric, on every supported Minecraft version. Both loaders behave identically and can play together on the same server.
