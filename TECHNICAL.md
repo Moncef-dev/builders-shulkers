@@ -1,13 +1,14 @@
-# Builder's Shulkers - Technical Documentation (v1.2.3)
+# Builder's Shulkers - Technical Documentation (v1.2.4)
 
 Contributor-facing notes on the technical problems this mod solves, the chosen solutions,
-their scope, and known risks. Describes the state as shipped in v1.2.3. This is the 26.x branch
-(Minecraft 26.1.x and 26.2); the 1.21.x line lives on its own branch with the same architecture.
+their scope, and known risks. Describes the state as shipped in v1.2.4. This is the 26.x branch
+(Minecraft 26.1.x, 26.2 and 26.3); the 1.21.x line lives on its own branch with the same architecture.
 
 ## Environment
 
 - Loaders: Fabric AND NeoForge (1.2.3), from one shared source tree; see Multi-version, multi-loader build below.
-  Minecraft 26.1.2 and 26.2. The 26.1.2 builds, shipped as `...-<loader>-26.1.x.jar`, also run on 26.1 and 26.1.1
+  Minecraft 26.1.2, 26.2 and 26.3 (1.2.4). NeoForge only publishes beta builds for 26.2 and 26.3, which those two
+  jars are built against. The 26.1.2 builds, shipped as `...-<loader>-26.1.x.jar`, also run on 26.1 and 26.1.1
   (the whole 26.1.x family via a widened dependency range; stable NeoForge only exists for 26.1.2, but the 26.1.0
   and 26.1.1 beta NeoForge builds are covered too, the mod classes being verified byte-compatible across the
   family). JDK 25 (the NeoForge toolchain also needs a JDK 21 installation for its own tools).
@@ -31,8 +32,31 @@ only versions the conventional source-set directories, so separate per-loader di
 ignored on non-active nodes. The shared code reaches loader services through a minimal platform layer (see
 section 13); it never imports a loader API.
 
-The source is kept in 26.2 form (the vcs version) and a handful of global Stonecutter replacements rewrite it back
-to 26.1.2 at configure time. They cover the only client-side API deltas between the two versions:
+The source is kept in 26.3 form (the vcs version) and Stonecutter rewrites it back down to the older targets at
+configure time, through two mechanisms. Global replacements in `stonecutter.gradle.kts` carry every delta that is
+purely textual, which keeps the source itself free of version noise; the few STRUCTURAL deltas (a different mixin
+target, a different method signature, an import that exists on one side only) cannot be expressed as a string
+substitution, so those files carry inline Stonecutter directives instead. Prefer a global replacement whenever one
+can express the delta.
+
+Down from 26.3 to 26.2 and 26.1.2:
+
+- Input moved off GLFW: keyboard mappings take `InputConstants.Type.KEYBOARD` (was `KEYSYM`) with vanilla
+  `InputConstants` key codes (HID usages) instead of GLFW codes, and the `org.lwjgl.glfw.GLFW` import only exists
+  below 26.3 (`BuildersShulkersKeybinds`).
+- `ItemInHandRenderer` was split into `FirstPersonHandsAndItems` (state extraction) and
+  `FirstPersonHandsAndItemsRenderer` (submission), and `renderItem` is gone: the first-person item is submitted
+  inside `submitArmWithItem`, off the extracted render state. `FirstPersonHeldItemMixin` and
+  `IgnoreAnimationIdSwapMixin` retarget accordingly, and `shouldInstantlyReplaceVisibleItem` takes the
+  `LocalPlayer` on 26.3.
+- The crumbling overlay left the submit calls (vanilla submits it separately through `submitCrumblingOverlay`), so
+  `submitModel` and `submitModelPart` lost their trailing `CrumblingOverlay` parameter (`ShulkerBoxLidFadeMixin`).
+- Container components gained a shared `ContainerComponent` interface: `allItemsCopyStream()` became `itemCopies()`
+  and a `size()` accessor appeared, which `ShulkerContents.write` uses to measure an oversized container.
+- `AbstractContainerScreen.slotClicked` gained a second overload adapting a `MouseButtonEvent`, so
+  `ShulkerSlotClickMixin` pins its target by descriptor rather than by name.
+
+Down from 26.2 to 26.1.2:
 
 - `Gui` was split into `Gui` + a new `Hud` class (the HUD: hotbar, item-name popup). The HUD mixins
   (`GuiSelectedItemNameMixin`, `GuiSelectedContentDecorationsMixin`) target `Hud` on 26.2 and `Gui` on 26.1.2, so
@@ -41,7 +65,7 @@ to 26.1.2 at configure time. They cover the only client-side API deltas between 
 - The removed `Minecraft.screen` field became the `Gui.screen()` getter, and `Minecraft.setScreen` became `gui.setScreen`.
 - `OrderedSubmitNodeCollector.submitModelPart` dropped two trailing boolean flags.
 
-Both versions share the same render paradigm (the `GuiGraphicsExtractor` + `Matrix3x2fStack` GUI path), so 26.x
+All three versions share the same render paradigm (the `GuiGraphicsExtractor` + `Matrix3x2fStack` GUI path), so 26.x
 stays a single family behind one source rather than separate branches.
 
 ## Overview
@@ -210,7 +234,8 @@ Server (`builders-shulkers.mixins.json`):
   other mods' containers).
 
 Client (`builders-shulkers.client.mixins.json`):
-- `ShulkerSlotClickMixin` / `ShulkerCreativeSlotClickMixin` -> `slotClicked` (HEAD, cancellable):
+- `ShulkerSlotClickMixin` / `ShulkerCreativeSlotClickMixin` -> `slotClicked` (HEAD, cancellable; pinned by
+  descriptor to the `(Slot, int, int, ContainerInput)` funnel, since 26.3 added a second overload delegating to it):
   route a right-click on a shulker to the open handler. The interception is gated on the platform's
   `canSend(OpenShulkerPayload.TYPE)` (section 13): on a server that does not run the mod the
   server cannot receive the open request, so the click is left to vanilla and the shulker keeps its
@@ -228,12 +253,14 @@ Client (`builders-shulkers.client.mixins.json`):
 - `ItemEntityRenderStateMixin` / `ItemEntityRendererMixin`: animate the lid on dropped shulkers.
 - `HeldItemAnimationMixin` -> `ItemInHandLayer.submitArmWithItem` (HEAD/RETURN): publish the animation id
   around the third-person held-item draw so the lid animates on a shulker held by an entity (another player).
-- `FirstPersonHeldItemMixin` -> `ItemInHandRenderer.renderItem` (HEAD/RETURN): publish the animation id around
+- `FirstPersonHeldItemMixin` -> `FirstPersonHandsAndItemsRenderer.submitArmWithItem` on 26.3,
+  `ItemInHandRenderer.renderItem` below (HEAD/RETURN): publish the animation id around
   the local player's own first-person held-item draw, so their held shulker animates in first person. This
   replaces an earlier broad fallback in `ShulkerBoxOpennessMixin` (apply the local player's held animation to
   any shulker with no side channel set), which wrongly rendered other players' held shulkers as open from the
   local player's view.
-- `IgnoreAnimationIdSwapMixin` -> `ItemInHandRenderer.shouldInstantlyReplaceVisibleItem` (HEAD,
+- `IgnoreAnimationIdSwapMixin` -> `shouldInstantlyReplaceVisibleItem`, on `FirstPersonHandsAndItems` in 26.3 and
+  on `ItemInHandRenderer` below (HEAD,
   cancellable): force an instant swap (no swing animation) when two consecutive held stacks differ ONLY in
   swap-cosmetic ways - our marker, or the container/bundle contents the feature edits while the box is held.
   `diffIsOnlySwapCosmetic` compares every component except `CUSTOM_DATA`, `CONTAINER`, and `BUNDLE_CONTENTS`, then
@@ -243,6 +270,9 @@ Client (`builders-shulkers.client.mixins.json`):
   vanilla applies to `minecraft:damage` for the same reason (an item whose state changes during normal use should not
   make the hand dip); vanilla never flags container/bundle contents only because it never edits a held container, and
   we do.
+
+A third config, `builders-shulkers.litematica.mixins.json`, is OPTIONAL and client-only: it is gated on Litematica
+being installed and is described with the integration itself in section 12.
 
 ## 6. Networking payloads
 
@@ -261,7 +291,7 @@ Client (`builders-shulkers.client.mixins.json`):
   `pocket_build`), sent on join and on every change. Custom gamerules are NOT synced to the client automatically, so
   the client caches them (`ClientGameRuleState`) to gate its own interception in step with the server (section 9).
 
-## 7. Known limitations and risks (v1.2.3)
+## 7. Known limitations and risks (v1.2.4)
 
 - Component-equality divergence (observed, not just theoretical). While the `animation_id` marker is
   present (a key inside `custom_data`), the shulker is not equal by components to an otherwise identical
@@ -638,9 +668,9 @@ it through the shared `PocketBuildClient.handlePocketBuildPick`, which decides:
 - Priority 3 (unchanged): nowhere at all -> STAY in the mode and do nothing. The vanilla pick is a no-op, so there is no
   slot change to desync.
 
-`handlePocketBuildPick` (and `selectContentMatching`) are shared with the Litematica schematic pick (section 12), so the
-two pick paths behave identically. The box selection is purely client-side state (no item moves), so there is no
-duplication concern.
+`handlePocketBuildPick` is shared with the Litematica schematic pick, and `selectContentMatching` with the Litematica
+easy place as well (section 12), so every path that points the selection at a block behaves identically. The box
+selection is purely client-side state (no item moves), so there is no duplication concern.
 
 ## 9. Server gamerules (feature toggles)
 
@@ -746,9 +776,10 @@ compatible from the other mod's side.
 ## 12. Optional third-party integrations
 
 Integrations with other mods are OPTIONAL and isolated, all following the same soft-dependency pattern: each lives in
-its own `client.compat` class, loaded behind a `FabricLoader.isModLoaded(...)` gate (registered from the Fabric
-client entrypoint - the integrated mods are Fabric mods, so the compat package is excluded from the NeoForge build
-entirely), so its references to the other mod are never linked when that mod is absent. The other mod is
+its own `client.compat` class, behind a `FabricLoader.isModLoaded(...)` gate (from the Fabric client entrypoint for a
+listener-based integration, from an `IMixinConfigPlugin` for a mixin-based one - the integrated mods are Fabric mods,
+so the compat package, and the optional mixin config that names it, are excluded from the NeoForge build entirely), so
+its references to the other mod are never linked when that mod is absent. The other mod is
 a compile-only dependency (never bundled), pinned per Minecraft version in `build.gradle.kts` and listed under
 `suggests` in fabric.mod.json. The mod runs unchanged when none of these are present.
 
@@ -769,6 +800,48 @@ plus malilib, from the Modrinth maven.
   `onSchematicPickBlockCancelled` clears the flag by reflection, but ONLY when this mod was the canceller (`cancelledBy`
   equals the listener name `builders-shulkers`), so it never disturbs another mod's cancel and becomes a no-op once
   Litematica resets the flag itself. Reported upstream; drop `resetProcessingCancelled` once fixed.
+
+### Litematica (easy place, 1.2.4)
+
+With easy place on, Pocket-Build builds from the held box: the box answers for the material easy place needs, and the
+selection follows the schematic block by block, so one shulker is a palette for the whole build. Without this, easy
+place failed on every click with "Action prevented by the Easy Place mode", whatever the box held.
+
+Easy place resolves the item its schematic needs, tries to put it in hand from the player INVENTORY
+(`InventoryUtils.schematicWorldPickBlock`), then checks the stack actually in hand
+(`EntityUtils.getUsedHandForItem`); a shulker box never matches, so it gets no hand back, gives up, and cancels the
+click. Nothing on that path can see the box's `container` component.
+
+The integration only fixes that item resolution, with one `@WrapOperation` per call site:
+
+- the inventory pick is SKIPPED for the whole duration of the mode, not only when the box can serve the item: it
+  would otherwise move items in and out of the hotbar slot Pocket-Build locks, or overwrite it in creative, as soon
+  as the schematic asks for something the box does not carry. The Pocket-Build selection moves to the required item
+  instead, through the same `PocketBuildClient.selectContentMatching` the pick-block uses, so the new slot is synced
+  to the server exactly like a scroll, ahead of the use packet on the same connection;
+- the hand check answers `MAIN_HAND` once the selection serves the item.
+
+Everything after that is untouched: easy place calls `MultiPlayerGameMode.useItemOn` with the hit vector encoding the
+block orientation, and that is the method the content swap already wraps (section 8), so the placement, the packet
+and the server-authoritative swap behave exactly as for a plain Pocket-Build click. No server change, no new payload,
+no new anti-duplication surface.
+
+- Two implementations to hook. Litematica ships BOTH a historic easy place (`WorldUtils.doEasyPlaceAction`, driven
+  from the input and tick layer) and a rewrite (`EasyPlaceUtils.handleEasyPlace`, driven from `useItemOn`), and picks
+  one at runtime from its `easyPlacePostRewrite` setting, off by default. They carry the same two call sites, so each
+  gets the same pair of hooks (`WorldUtilsEasyPlaceMixin`, `EasyPlaceUtilsMixin`) over one shared decision class
+  (`LitematicaEasyPlaceCompat`). Hooking only the rewrite silently does nothing for most players.
+- Hand claim versus the swap. The rewrite path can run INSIDE the content swap, where the hand already holds the
+  content selected when the swap started; a selection changed at that point would not reach the nested placement, so
+  the hook defers (`PocketBuildClientSwap.isSwapping`) rather than risk placing the wrong block, and the next click
+  places from the updated selection. The historic path runs before any swap, so it is unaffected.
+  `PocketBuildClient.currentBox` exists for the same reason: during a swap the box is held aside, not in hand.
+- Fragility budget. Unlike the schematic pick-block, this path has no upstream event, so the hooks sit on internal
+  call sites of private methods. Both are declared `require = 0`, so a Litematica refactor turns the interop off
+  instead of crashing the game, and nothing is remapped (26.x ships deobfuscated, and the target is a third-party
+  jar). The call sites were verified identical in the pinned builds and in the newest published ones (0.27.14 and
+  0.28.8). Asking upstream to route this path through the existing `ISchematicPickBlockSlotHandler` would let both
+  mixins go.
 
 ## 13. The loader layer (Fabric + NeoForge, 1.2.3)
 
