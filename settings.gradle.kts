@@ -23,11 +23,12 @@ stonecutter {
         fun target(mc: String, vararg loaders: String) {
             for (loader in loaders) version("$mc-$loader", mc).buildscript("build.$loader.gradle.kts")
         }
+        target("26.3", "fabric", "neoforge")
         target("26.2", "fabric", "neoforge")
         target("26.1.2", "fabric", "neoforge")
-        // The source is kept in its 26.2 form (the newest target); this is the node the tree is reset to before
+        // The source is kept in its 26.3 form (the newest target); this is the node the tree is reset to before
         // a commit.
-        vcsVersion = "26.2-fabric"
+        vcsVersion = "26.3-fabric"
     }
 }
 

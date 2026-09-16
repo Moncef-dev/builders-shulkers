@@ -5,7 +5,9 @@ import io.github.moncefdev.shulkerinventory.client.gui.BuildersShulkersSettingsS
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
+//? if <26.3 {
+/*import org.lwjgl.glfw.GLFW;
+*///?}
 
 import java.util.List;
 
@@ -33,16 +35,16 @@ public final class BuildersShulkersKeybinds {
 				Identifier.fromNamespaceAndPath("builders-shulkers", "main"));
 		// Open the settings screen (default B, in-game only).
 		openSettings = new KeyMapping(
-				"key.builders-shulkers.open_settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category);
+				"key.builders-shulkers.open_settings", InputConstants.Type.KEYBOARD, InputConstants.KEY_B, category);
 		// Held together with right-click to enter/exit Pocket-Build (default Left Control), read via isDown() at the use.
 		pocketBuildModifier = new KeyMapping(
-				"key.builders-shulkers.pocket_build_modifier", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, category);
+				"key.builders-shulkers.pocket_build_modifier", InputConstants.Type.KEYBOARD, InputConstants.KEY_LCONTROL, category);
 		// Single press to enter/exit Pocket-Build (unbound by default; a one-button path for controller / mobile play).
 		pocketBuildToggle = new KeyMapping(
-				"key.builders-shulkers.pocket_build_toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category);
+				"key.builders-shulkers.pocket_build_toggle", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), category);
 		// Held to show the contents-peek overlay (default Left Control), read via isDown().
 		peek = new KeyMapping(
-				"key.builders-shulkers.peek", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, category);
+				"key.builders-shulkers.peek", InputConstants.Type.KEYBOARD, InputConstants.KEY_LCONTROL, category);
 		return List.of(openSettings, pocketBuildModifier, pocketBuildToggle, peek);
 	}
 

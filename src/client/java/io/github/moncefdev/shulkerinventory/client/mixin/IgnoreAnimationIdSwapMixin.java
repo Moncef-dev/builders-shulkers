@@ -1,7 +1,12 @@
 package io.github.moncefdev.shulkerinventory.client.mixin;
 
 import io.github.moncefdev.shulkerinventory.ShulkerAnimationMarker;
-import net.minecraft.client.renderer.ItemInHandRenderer;
+//? if >=26.3 {
+import net.minecraft.client.player.FirstPersonHandsAndItems;
+import net.minecraft.client.player.LocalPlayer;
+//?} else {
+/*import net.minecraft.client.renderer.ItemInHandRenderer;
+*///?}
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -24,7 +29,11 @@ import java.util.Set;
 // This extends vanilla's OWN ignoreSwapAnimation opt-out, which vanilla applies to minecraft:damage for the same
 // reason (an item whose state changes during normal use should not make the hand dip). Vanilla never flags
 // container/bundle_contents only because it never edits a held container; we do.
-@Mixin(ItemInHandRenderer.class)
+//? if >=26.3 {
+@Mixin(FirstPersonHandsAndItems.class)
+//?} else {
+/*@Mixin(ItemInHandRenderer.class)
+*///?}
 public abstract class IgnoreAnimationIdSwapMixin {
 	// Components a content edit changes that must NOT, on their own, replay the swap animation (the marker in
 	// custom_data is handled separately below). Comparing keys ourselves also covers add/remove of these components,
@@ -34,7 +43,12 @@ public abstract class IgnoreAnimationIdSwapMixin {
 			Set.of(DataComponents.CONTAINER, DataComponents.BUNDLE_CONTENTS);
 
 	@Inject(method = "shouldInstantlyReplaceVisibleItem", at = @At("HEAD"), cancellable = true)
-	private void shulkerInventory$ignoreMarkerChange(ItemStack oldStack, ItemStack newStack, CallbackInfoReturnable<Boolean> cir) {
+	//? if >=26.3 {
+	private void shulkerInventory$ignoreMarkerChange(ItemStack oldStack, ItemStack newStack, LocalPlayer player,
+			CallbackInfoReturnable<Boolean> cir) {
+	//?} else {
+	/*private void shulkerInventory$ignoreMarkerChange(ItemStack oldStack, ItemStack newStack, CallbackInfoReturnable<Boolean> cir) {
+	*///?}
 		if (oldStack.isEmpty() || newStack.isEmpty()) return;
 		if (!oldStack.is(newStack.getItem())) return;
 		if (oldStack.getCount() != newStack.getCount()) return;

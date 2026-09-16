@@ -21,6 +21,7 @@ val jarMcLabel = when (minecraftVersion) {
 val (loaderVersion, fabricApiVersion, litematicaVersion, malilibVersion, minecraftDep) = when (minecraftVersion) {
     "26.1.2" -> listOf("0.19.2", "0.150.0+26.1.2", "0.27.14", "0.28.12", "~26.1")
     "26.2" -> listOf("0.19.3", "0.152.1+26.2", "0.28.8", "0.29.6", "~26.2")
+    "26.3" -> listOf("0.19.5", "0.160.6+26.3", "0.28.8", "0.29.6", ">=26.3- <26.4-")
     else -> error("Unconfigured Minecraft version: $minecraftVersion")
 }
 

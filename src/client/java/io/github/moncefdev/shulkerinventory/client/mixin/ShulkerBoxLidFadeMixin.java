@@ -34,19 +34,35 @@ public abstract class ShulkerBoxLidFadeMixin {
 	// Above this openness (fully open) the lid is fully dissolved anyway, so we skip submitting it.
 	private static final float LID_HIDE_OPENNESS = 0.999f;
 
+	// 26.3 took the crumbling overlay out of the submit calls (vanilla submits it separately, through
+	// submitCrumblingOverlay) and generalised the sprite parameter to UvMapping, which TextureAtlasSprite implements.
 	@WrapOperation(
 			method = "submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;IIFLnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;Lnet/minecraft/client/resources/model/sprite/SpriteId;I)V",
+			//? if >=26.3 {
 			at = @At(value = "INVOKE",
+					target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitModel(Lnet/minecraft/client/model/Model;Ljava/lang/Object;Lcom/mojang/blaze3d/vertex/PoseStack;IIILnet/minecraft/client/resources/model/sprite/SpriteId;Lnet/minecraft/client/resources/model/sprite/SpriteGetter;I)V"))
+			//?} else {
+			/*at = @At(value = "INVOKE",
 					target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitModel(Lnet/minecraft/client/model/Model;Ljava/lang/Object;Lcom/mojang/blaze3d/vertex/PoseStack;IIILnet/minecraft/client/resources/model/sprite/SpriteId;Lnet/minecraft/client/resources/model/sprite/SpriteGetter;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"))
+			*///?}
 	private void shulkerInventory$dissolveLid(SubmitNodeCollector collector, Model<?> model, Object state,
 			PoseStack poseStack, int lightCoords, int overlayCoords, int tintedColor, SpriteId sprite, SpriteGetter sprites,
-			int outlineColor, ModelFeatureRenderer.CrumblingOverlay crumblingOverlay, Operation<Void> original) {
+			int outlineColor,
+			//? if <26.3 {
+			/*ModelFeatureRenderer.CrumblingOverlay crumblingOverlay,
+			*///?}
+			Operation<Void> original) {
 		// Draw the lid normally (opaque, lifts or stays at its resting state) when it is not our Pocket-Build lid, or when
 		// the lid effect is NONE. DISSOLVE and DISAPPEAR both split base + lid below; neither ever uses a translucent pass.
 		ClientConfig.LidEffect effect = ClientConfig.get().lidEffect;
 		if (!ClientShulkerSession.isPocketBuildLidRendering() || effect == ClientConfig.LidEffect.NONE) {
+			//? if >=26.3 {
 			original.call(collector, model, state, poseStack, lightCoords, overlayCoords, tintedColor, sprite, sprites,
+					outlineColor);
+			//?} else {
+			/*original.call(collector, model, state, poseStack, lightCoords, overlayCoords, tintedColor, sprite, sprites,
 					outlineColor, crumblingOverlay);
+			*///?}
 			return;
 		}
 		ModelPart root = model.root();
@@ -57,8 +73,13 @@ public abstract class ShulkerBoxLidFadeMixin {
 		float progress = ClientShulkerSession.currentDissolveProgress();
 		TextureAtlasSprite atlasSprite = sprites.get(sprite);
 		// Base: always opaque cutout, original tint.
+		//? if >=26.3 {
 		collector.submitModelPart(base, poseStack, sprite.renderType(RenderTypes::entityCutout), lightCoords,
+				overlayCoords, atlasSprite, tintedColor, outlineColor);
+		//?} else {
+		/*collector.submitModelPart(base, poseStack, sprite.renderType(RenderTypes::entityCutout), lightCoords,
 				overlayCoords, atlasSprite, tintedColor, crumblingOverlay, outlineColor);
+		*///?}
 		if (effect == ClientConfig.LidEffect.DISAPPEAR) {
 			// Lid present (opaque, original tint - identical to a vanilla closed lid) and lifting WITH the animation until
 			// the box is fully open; it vanishes only once the openness reaches 1, and reappears the instant a close
@@ -66,16 +87,26 @@ public abstract class ShulkerBoxLidFadeMixin {
 			// lift instead of popping out the moment opening starts. A draw-call on/off, never a fade, so it cannot mask
 			// anything behind it.
 			if (progress < LID_HIDE_OPENNESS) {
+				//? if >=26.3 {
 				collector.submitModelPart(lid, poseStack, sprite.renderType(RenderTypes::entityCutout), lightCoords,
+						overlayCoords, atlasSprite, tintedColor, outlineColor);
+				//?} else {
+				/*collector.submitModelPart(lid, poseStack, sprite.renderType(RenderTypes::entityCutout), lightCoords,
 						overlayCoords, atlasSprite, tintedColor, crumblingOverlay, outlineColor);
+				*///?}
 			}
 		} else {
 			// DISSOLVE: order-independent cutout, mask threshold driven by tint alpha = 1 - progress, until fully gone.
 			if (progress < LID_HIDE_OPENNESS) {
 				RenderType dissolve = sprite.renderType(
 						texture -> RenderTypes.entityCutoutDissolve(texture, DissolveMask.identifier()));
+				//? if >=26.3 {
 				collector.submitModelPart(lid, poseStack, dissolve, lightCoords, overlayCoords, atlasSprite,
+						ARGB.white(1.0f - progress), outlineColor);
+				//?} else {
+				/*collector.submitModelPart(lid, poseStack, dissolve, lightCoords, overlayCoords, atlasSprite,
 						ARGB.white(1.0f - progress), crumblingOverlay, outlineColor);
+				*///?}
 			}
 		}
 	}

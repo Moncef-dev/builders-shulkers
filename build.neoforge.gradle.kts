@@ -18,10 +18,12 @@ val jarMcLabel = when (minecraftVersion) {
 
 // Per-version pins, keyed on the active Minecraft version: [NeoForge version, NeoForge dependency range].
 // NeoForge versions embed the Minecraft version as their first three components (26.1.2.80 = MC 26.1.2 build 80).
-// 26.1.2.80 is the latest stable; 26.2.0.15-beta is the latest for MC 26.2 (still beta upstream).
+// 26.1.2.80 is the latest stable; 26.2.0.15-beta and 26.3.0.1-beta are the latest for MC 26.2 and 26.3
+// (both still beta upstream).
 val (neoForgeVersion, neoForgeDep) = when (minecraftVersion) {
     "26.1.2" -> listOf("26.1.2.80", "[26.1,26.2)")
     "26.2" -> listOf("26.2.0.15-beta", "[26.2,26.3)")
+    "26.3" -> listOf("26.3.0.1-beta", "[26.3,26.4)")
     else -> error("Unconfigured Minecraft version: $minecraftVersion")
 }
 

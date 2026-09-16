@@ -41,7 +41,7 @@ public final class ShulkerContents {
 	// is then byte-for-byte the old behaviour (no vanilla change).
 	public static void write(ItemStack shulker, List<ItemStack> items) {
 		ItemContainerContents existing = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
-		int fullSize = Math.max(SIZE, (int) existing.allItemsCopyStream().count());
+		int fullSize = Math.max(SIZE, existing.size());
 		NonNullList<ItemStack> full = NonNullList.withSize(fullSize, ItemStack.EMPTY);
 		existing.copyInto(full);
 		for (int i = 0; i < SIZE; i++) {
