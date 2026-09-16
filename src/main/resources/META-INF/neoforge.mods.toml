@@ -11,7 +11,12 @@ modId = "builders_shulkers"
 version = "${version}"
 displayName = "Builder's Shulkers"
 displayURL = "https://github.com/Moncef-dev/builders-shulkers"
+# The mod-list icon is declared TWICE on purpose. 26.3 deprecated logoFile in favour of iconFile (square) and
+# bannerFile, and warns about it, while 26.1 and 26.2 only ever read logoFile: dropping it would cost those two
+# jars their icon. Declaring both lets each version read the key it knows. The warning is dev-only anyway
+# (LogoFileWarningsHandler returns immediately when FMLEnvironment.isProduction), so players never saw it.
 logoFile = "assets/builders-shulkers/icon.png"
+iconFile = "assets/builders-shulkers/icon.png"
 authors = "Moncef-dev"
 description = '''Open and rearrange shulker box contents directly from your inventory, in a chest-style screen with a lid animation.'''
 
