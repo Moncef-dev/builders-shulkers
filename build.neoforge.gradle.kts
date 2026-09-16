@@ -2,7 +2,7 @@ import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 
 plugins {
-    id("net.neoforged.moddev") version "2.0.142"
+    id("net.neoforged.moddev") version "2.0.147"
 }
 
 val minecraftVersion = stonecutter.current.version
